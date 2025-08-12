@@ -1,4 +1,5 @@
-import React from "react";
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Box,
   Stepper,
@@ -6,9 +7,15 @@ import {
   StepLabel,
   Typography,
   Button,
+  Stack,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from "@mui/material";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import { styled } from "@mui/material/styles";
+import GeneratePDF from "./generatePDF";
 
 const StepIconRoot = styled("div")(({ theme, ownerState }) => ({
   color:
@@ -42,12 +49,28 @@ const CustomStepIcon = (props) => {
   );
 };
 
-const StepperForm = ({ children, activeStep, setActiveStep }) => {
+const StepperForm = ({ children, activeStep, setActiveStep, texto }) => {
   const steps = React.Children.toArray(children);
+  const navigate = useNavigate();
 
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const handleNext = () => setActiveStep((prev) => prev + 1);
   const handleBack = () => setActiveStep((prev) => Math.max(prev - 1, 0));
   const handleReset = () => setActiveStep(0);
+  // Mostrar diálogo de confirmación para volver al menú principal
+
+  const handleHome = () => {
+    setConfirmOpen(true);
+  };
+  const handleConfirmYes = () => {
+    setConfirmOpen(false);
+    setActiveStep(0);
+    navigate("/");
+  };
+
+  const handleConfirmNo = () => {
+    setConfirmOpen(false);
+  };
 
   return (
     <Box
@@ -81,18 +104,47 @@ const StepperForm = ({ children, activeStep, setActiveStep }) => {
 
       <Box sx={{ minHeight: 200 }}>
         {activeStep === steps.length ? (
-          <Box textAlign="center">
-            <Typography variant="h5" color="success.main" mb={3}>
-              ¡Todos los pasos completados!
+          <Box
+            sx={{
+              maxWidth: 500,
+              mx: "auto",
+              mt: 6,
+              p: 4,
+              bgcolor: "#f5f5f5",
+              borderRadius: 3,
+              boxShadow: 3,
+              textAlign: "center",
+            }}
+          >
+            <Typography variant="h5" fontWeight="bold" gutterBottom>
+              Exportar Acta Generada
             </Typography>
-            <Button
-              onClick={handleReset}
-              variant="outlined"
-              color="primary"
-              sx={{ fontWeight: 500 }}
+            <Stack
+              direction="row"
+              spacing={4}
+              justifyContent="center"
+              sx={{ mt: 3 }}
             >
-              Reiniciar
-            </Button>
+              <GeneratePDF textoHTML={texto} />
+            </Stack>
+            <Stack spacing={2} direction="row" justifyContent="center">
+              <Button
+                onClick={handleBack}
+                variant="outlined"
+                color="primary"
+                sx={{ fontWeight: 500 }}
+              >
+                Atrás
+              </Button>
+              <Button
+                onClick={handleHome}
+                variant="contained"
+                color="primary"
+                sx={{ fontWeight: 500 }}
+              >
+                Volver al menú principal
+              </Button>
+            </Stack>
           </Box>
         ) : (
           <>
@@ -104,6 +156,23 @@ const StepperForm = ({ children, activeStep, setActiveStep }) => {
           </>
         )}
       </Box>
+      {/* Diálogo de confirmación */}
+      <Dialog open={confirmOpen} onClose={handleConfirmNo}>
+        <DialogTitle>¿Cancelar y salir al menú principal?</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Se perderán los datos no guardados. ¿Desea continuar?
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleConfirmNo} color="primary">
+            No
+          </Button>
+          <Button onClick={handleConfirmYes} color="error" variant="contained">
+            Sí, salir
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

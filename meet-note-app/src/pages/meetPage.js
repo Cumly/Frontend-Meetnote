@@ -11,7 +11,6 @@ import {
   Button,
   Typography,
 } from "@mui/material";
-import AudioRecorder from "../components/molecules/audioRecorder";
 import { marked } from "marked";
 import { Backdrop, CircularProgress, Box } from "@mui/material";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
@@ -109,6 +108,7 @@ const MeetPage = () => {
             onGuardar={handleGuardar}
             onBack={handleNavigationBack}
             onCancel={handleCancel}
+            initialData={datosReunion}
           />
           <EditStep
             data={acta}

@@ -99,7 +99,7 @@ const FilePage = () => {
       <div>
         <StepperForm activeStep={activeStep} setActiveStep={setActiveStep}>
           <UploadStep
-            allowedExtensions={["txt", "trans"]}
+            allowedExtensions={["txt", "vtt"]}
             onFileSelected={setArchivo}
             onContinue={handleContinue}
             file={archivo}

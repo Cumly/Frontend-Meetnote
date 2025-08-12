@@ -153,7 +153,7 @@ const VideoPage = () => {
         <CircularProgress color="inherit" />
         <Box mt={2}>
           <Typography variant="h6" align="center">
-            Procesando transcripción...
+            Procesando video...
           </Typography>
         </Box>
       </Backdrop>

@@ -24,8 +24,6 @@ const ExportActa = ({ textoPlano }) => {
       <Stack direction="row" spacing={4} justifyContent="center" sx={{ mt: 3 }}>
         <GeneratePDF textoHTML={textoPlano} />
       </Stack>
-
-      <Divider sx={{ mt: 4 }} />
     </Box>
   );
 };

@@ -112,6 +112,7 @@ const RecordPage = () => {
             onGuardar={handleGuardar}
             onBack={handleNavigationBack}
             onCancel={handleCancel}
+            initialData={datosReunion}
           />
           <EditStep
             data={acta}
@@ -156,7 +157,7 @@ const RecordPage = () => {
         <CircularProgress color="inherit" />
         <Box mt={2}>
           <Typography variant="h6" align="center">
-            Procesando transcripción...
+            Procesando grabación...
           </Typography>
         </Box>
       </Backdrop>
