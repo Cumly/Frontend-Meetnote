@@ -11,6 +11,7 @@ import {
   Button,
   Typography,
 } from "@mui/material";
+import AudioRecorder from "../components/molecules/audioRecorder";
 import { marked } from "marked";
 import { Backdrop, CircularProgress, Box } from "@mui/material";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
@@ -20,6 +21,7 @@ import ExportActa from "../components/organisms/exportActa";
 const MeetPage = () => {
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [titulo, setTitulo] = useState(null);
   const [datosReunion, setDatosReunion] = useState(null);
   const [archivo, setArchivo] = useState(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -30,7 +32,7 @@ const MeetPage = () => {
     try {
       setLoading(true);
       setDatosReunion(data);
-
+      setTitulo(data.titulo);
       console.log("Archivo a enviar:", archivo);
       console.log("Es instancia de File:", archivo instanceof File);
       if (archivo) {
@@ -102,13 +104,17 @@ const MeetPage = () => {
   return (
     <>
       <div>
-        <StepperForm activeStep={activeStep} setActiveStep={setActiveStep}>
+        <StepperForm
+          activeStep={activeStep}
+          setActiveStep={setActiveStep}
+          texto={acta}
+          titulo={titulo}
+        >
           <MeetStep></MeetStep>
           <FormStep
             onGuardar={handleGuardar}
             onBack={handleNavigationBack}
             onCancel={handleCancel}
-            initialData={datosReunion}
           />
           <EditStep
             data={acta}

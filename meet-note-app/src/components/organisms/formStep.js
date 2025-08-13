@@ -18,7 +18,7 @@ const style = {
   margin: "auto",
 };
 
-const FormStep = ({ onGuardar, onBack, onCancel, initialData = {} }) => {
+const FormStep = ({ onGuardar, onBack, onCancel }) => {
   const [titulo, setTitulo] = useState("");
   const [fecha, setFecha] = useState("");
   const [horaInicio, setHoraInicio] = useState("");
@@ -27,19 +27,9 @@ const FormStep = ({ onGuardar, onBack, onCancel, initialData = {} }) => {
   const [participantesError, setParticipantesError] = useState(null);
   const [errors, setErrors] = useState({});
 
-  const setData = () => {
-    if (initialData) {
-      setTitulo(initialData.titulo || "");
-      setFecha(initialData.fecha || "");
-      setHoraInicio(initialData.horaInicio || "");
-      setHoraFin(initialData.horaFin || "");
-      setParticipantes(initialData.participantes || []);
-    }
-  };
-
   useEffect(() => {
-    setData();
-  }, [initialData]);
+    resetForm();
+  }, []);
 
   const resetForm = () => {
     setTitulo("");
@@ -60,12 +50,11 @@ const FormStep = ({ onGuardar, onBack, onCancel, initialData = {} }) => {
     resetForm();
     if (onBack) onBack(); // ejecuta el handler del componente padre
   };
+
   const guardar = () => {
     const nuevosErrores = {};
-    const ahora = new Date();
-
-    const haceUnAno = new Date();
-    haceUnAno.setFullYear(haceUnAno.getFullYear() - 1);
+    const hoy = new Date();
+    const fechaReunion = new Date(fecha);
 
     if (titulo.trim() === "") {
       nuevosErrores.titulo = "El título es obligatorio.";
@@ -73,6 +62,8 @@ const FormStep = ({ onGuardar, onBack, onCancel, initialData = {} }) => {
 
     if (!fecha) {
       nuevosErrores.fecha = "La fecha es obligatoria";
+    } else if (fechaReunion > hoy) {
+      nuevosErrores.fecha = "La fecha no puede estar en el futuro";
     }
 
     if (!horaInicio) {
@@ -81,87 +72,20 @@ const FormStep = ({ onGuardar, onBack, onCancel, initialData = {} }) => {
 
     if (!horaFin) {
       nuevosErrores.horaFin = "La hora de fin es obligatoria";
+    } else if (horaInicio && horaFin < horaInicio) {
+      nuevosErrores.horaFin =
+        "La hora de fin no puede ser anterior a la de inicio.";
     }
 
-    // Validación básica de fecha antes de usar horas
-    if (fecha) {
-      const fechaSeleccionada = new Date(fecha);
-      const hoy = new Date();
-      hoy.setHours(0, 0, 0, 0); // Eliminar hora para comparar solo fecha
-
-      const fechaSinHora = new Date(fecha);
-      fechaSinHora.setHours(0, 0, 0, 0);
-
-      if (fechaSinHora > hoy) {
-        nuevosErrores.fecha = "La fecha no puede estar en el futuro";
-      }
-
-      const haceUnAnoSinHora = new Date(haceUnAno);
-      haceUnAnoSinHora.setHours(0, 0, 0, 0);
-
-      if (fechaSinHora < haceUnAnoSinHora) {
-        nuevosErrores.fecha =
-          "La fecha no puede ser más antigua que hace un año";
-      }
-    }
-
-    // Validación de horas solo si fecha está correcta
-    if (
-      fecha &&
-      horaInicio &&
-      horaFin &&
-      !nuevosErrores.fecha &&
-      !nuevosErrores.horaInicio &&
-      !nuevosErrores.horaFin
-    ) {
-      const [hiHoras, hiMinutos] = horaInicio.split(":").map(Number);
-      const [hfHoras, hfMinutos] = horaFin.split(":").map(Number);
-
-      const [anio, mes, dia] = fecha.split("-").map(Number); // yyyy-mm-dd
-
-      const fechaInicio = new Date(anio, mes - 1, dia, hiHoras, hiMinutos);
-      const fechaFin = new Date(anio, mes - 1, dia, hfHoras, hfMinutos);
-
-      if (fechaInicio > ahora) {
-        nuevosErrores.horaInicio =
-          "La hora de inicio no puede ser en el futuro.";
-      }
-
-      if (fechaFin > ahora) {
-        nuevosErrores.horaFin = "La hora de fin no puede ser en el futuro.";
-      }
-
-      if (fechaFin <= fechaInicio) {
-        nuevosErrores.horaFin =
-          "La hora de fin no puede ser igual o anterior a la de inicio.";
-      }
-    }
-
-    // Validar participantes: mínimo 2 y sin duplicados
-    if (participantes.length < 2) {
-      setParticipantesError("Debe haber al menos dos participantes.");
+    if (participantes.length === 0) {
+      setParticipantesError("Debe agregar al menos un participante.");
     } else {
-      const nombres = participantes.map((p) => p.trim().toLowerCase());
-      const tieneDuplicados = nombres.some(
-        (nombre, idx) => nombres.indexOf(nombre) !== idx
-      );
-
-      if (tieneDuplicados) {
-        setParticipantesError(
-          "No se permiten nombres de participantes repetidos."
-        );
-      } else {
-        setParticipantesError(null);
-      }
+      setParticipantesError(null);
     }
 
     setErrors(nuevosErrores);
 
-    if (
-      Object.keys(nuevosErrores).length === 0 &&
-      participantes.length >= 2 &&
-      !participantesError
-    ) {
+    if (Object.keys(nuevosErrores).length === 0 && participantes.length > 0) {
       onGuardar({ titulo, fecha, horaInicio, horaFin, participantes });
     }
   };

@@ -1,7 +1,6 @@
-// src/components/molecules/UserMenu.jsx
 import { Avatar, Menu, MenuItem } from "@mui/material";
 
-const UserMenu = ({ anchorEl, open, onClose, onLogout }) => {
+const UserMenu = ({ anchorEl, open, onClose, handleLogout, photo }) => {
   return (
     <Menu
       anchorEl={anchorEl}
@@ -11,7 +10,7 @@ const UserMenu = ({ anchorEl, open, onClose, onLogout }) => {
       transformOrigin={{ vertical: "top", horizontal: "right" }}
       elevation={2}
     >
-      <MenuItem onClick={onLogout}>Cerrar sesión</MenuItem>
+      <MenuItem onClick={handleLogout}>Cerrar sesión</MenuItem>
     </Menu>
   );
 };

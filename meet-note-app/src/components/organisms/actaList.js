@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   Box,
   List,
@@ -11,63 +11,72 @@ import {
   Dialog,
   DialogActions,
   DialogContent,
-  DialogContentText,
   DialogTitle,
+  Divider,
+  CircularProgress,
 } from "@mui/material";
-import ButtonStep from "../molecules/buttonsStep";
+import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
+import DownloadIcon from "@mui/icons-material/Download";
+import SearchIcon from "@mui/icons-material/Search";
+import WarningAmberIcon from "@mui/icons-material/WarningAmber";
+import {
+  getArchivosDrive,
+  eliminarArchivoDrive,
+} from "../../services/googleService";
 
-const neutralScrollbar = {
-  "&::-webkit-scrollbar": {
-    width: 6,
-  },
-  "&::-webkit-scrollbar-track": {
-    background: "#f0f0f0",
-    borderRadius: 3,
-  },
-  "&::-webkit-scrollbar-thumb": {
-    background: "#b0b0b0",
-    borderRadius: 3,
-  },
-  "&::-webkit-scrollbar-thumb:hover": {
-    background: "#909090",
-  },
-  scrollbarWidth: "thin",
-  scrollbarColor: "#b0b0b0 #f0f0f0",
-};
-
-const ActaList = ({ ms = [], onDelete }) => {
-  const [notes, setNotes] = useState(ms);
-  const [selectedNote, setSelectedNote] = useState(ms[0] || null);
+const DriveFileViewer = () => {
+  const [files, setFiles] = useState([]);
+  const [selectedFile, setSelectedFile] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const filteredNotes = notes.filter((note) =>
-    note.title.toLowerCase().includes(searchTerm.toLowerCase())
+  const loadFiles = async () => {
+    setLoading(true);
+    try {
+      const data = await getArchivosDrive();
+      setFiles(data);
+      setSelectedFile(data[0] || null);
+    } catch (err) {
+      console.error("Error al obtener archivos:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+  const getDownloadUrl = (file) => {
+    // Enlace para descarga directa
+    return `https://drive.google.com/uc?export=download&id=${file.id}`;
+  };
+
+  useEffect(() => {
+    loadFiles();
+  }, []);
+
+  const handleDeleteConfirm = async () => {
+    if (!selectedFile) return;
+    try {
+      await eliminarArchivoDrive(selectedFile.id);
+      const updatedFiles = files.filter((f) => f.id !== selectedFile.id);
+      setFiles(updatedFiles);
+      setSelectedFile(updatedFiles[0] || null);
+      setDialogOpen(false);
+    } catch (err) {
+      console.error("Error al eliminar archivo:", err);
+    }
+  };
+
+  const getDrivePreviewUrl = (file) => {
+    if (!file || !file.id) return "";
+    return `https://drive.google.com/file/d/${file.id}/preview`;
+  };
+
+  const filteredFiles = useMemo(
+    () =>
+      files.filter((file) =>
+        file.name.toLowerCase().includes(searchTerm.toLowerCase())
+      ),
+    [files, searchTerm]
   );
-
-  const handleDownload = () => {
-    if (!selectedNote) return;
-    const element = document.createElement("a");
-    const file = new Blob(
-      [
-        `${selectedNote.title}\n${selectedNote.date}\n\n${selectedNote.content}`,
-      ],
-      { type: "text/plain" }
-    );
-    element.href = URL.createObjectURL(file);
-    element.download = `${selectedNote.title}.txt`;
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
-  };
-
-  const handleDeleteConfirm = () => {
-    const updatedNotes = notes.filter((note) => note.id !== selectedNote.id);
-    setNotes(updatedNotes);
-    setSelectedNote(updatedNotes[0] || null);
-    setDialogOpen(false);
-    if (onDelete) onDelete(selectedNote);
-  };
 
   return (
     <>
@@ -76,161 +85,287 @@ const ActaList = ({ ms = [], onDelete }) => {
           width: "100%",
           height: "80vh",
           display: "flex",
-          boxShadow: 3,
-          borderRadius: 2,
-          bgcolor: "background.paper",
-          overflow: "hidden",
-          fontFamily: "Roboto, sans-serif",
+          gap: 3,
+          bgcolor: "#f7f9fc",
+          p: 3,
+          borderRadius: 4,
         }}
       >
-        {/* Lista de actas */}
-        <Box
+        {/* Lista de archivos */}
+        <Paper
+          elevation={4}
           sx={{
             width: "30%",
-            borderRight: 1,
-            borderColor: "divider",
-            overflowY: "auto",
-            p: 2,
-            ...neutralScrollbar,
-          }}
-        >
-          <Typography variant="h6" sx={{ mb: 2 }}>
-            Reuniones
-          </Typography>
-
-          <TextField
-            fullWidth
-            size="small"
-            placeholder="Buscar actas..."
-            variant="outlined"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            sx={{ mb: 3 }}
-          />
-
-          <List disablePadding>
-            {filteredNotes.length > 0 ? (
-              filteredNotes.map((note) => (
-                <ListItemButton
-                  key={note.id}
-                  onClick={() => setSelectedNote(note)}
-                  selected={selectedNote?.id === note.id}
-                  sx={{
-                    mb: 1,
-                    borderRadius: 2,
-                    border: "1.5px solid",
-                    borderColor:
-                      selectedNote?.id === note.id
-                        ? "primary.main"
-                        : "grey.300",
-                    bgcolor:
-                      selectedNote?.id === note.id
-                        ? "primary.light"
-                        : "grey.100",
-                    "&:hover": {
-                      bgcolor: "primary.light",
-                      borderColor: "primary.main",
-                    },
-                  }}
-                >
-                  <Stack
-                    direction="row"
-                    alignItems="center"
-                    spacing={2}
-                    width="100%"
-                  >
-                    <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                      <Typography noWrap fontWeight="medium">
-                        {note.title}
-                      </Typography>
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                        noWrap
-                      >
-                        {note.date}
-                      </Typography>
-                    </Box>
-                  </Stack>
-                </ListItemButton>
-              ))
-            ) : (
-              <Typography color="text.secondary" sx={{ mt: 2, px: 2 }}>
-                No se encontraron actas.
-              </Typography>
-            )}
-          </List>
-        </Box>
-
-        {/* Vista previa */}
-        <Box
-          sx={{
-            flexGrow: 1,
             p: 3,
-            overflowY: "auto",
+            borderRadius: 4,
             display: "flex",
             flexDirection: "column",
-            ...neutralScrollbar,
+            bgcolor: "white",
+            boxShadow:
+              "0 4px 12px rgba(0, 0, 0, 0.05), 0 0 0 1px rgba(0,0,0,0.05)",
           }}
         >
-          <Typography variant="h6" gutterBottom>
-            📋 Vista Previa
+          <Typography
+            variant="h6"
+            fontWeight={700}
+            gutterBottom
+            color="primary.main"
+            sx={{ letterSpacing: 1 }}
+          >
+            📂 Actas Generadas
           </Typography>
-
-          <Paper
-            variant="outlined"
-            sx={{
-              flexGrow: 1,
-              p: 2,
-              whiteSpace: "pre-wrap",
-              overflowY: "auto",
-              bgcolor: "#fafafa",
-              borderRadius: 2,
-              ...neutralScrollbar,
+          <TextField
+            fullWidth
+            size="medium"
+            placeholder="Buscar archivo..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            sx={{ my: 2 }}
+            InputProps={{
+              startAdornment: <SearchIcon color="action" sx={{ mr: 1 }} />,
             }}
-          >
-            {selectedNote
-              ? selectedNote.content
-              : "Selecciona una acta para ver su contenido."}
-          </Paper>
-
-          <Box
-            sx={{ display: "flex", justifyContent: "flex-end", mt: 2, gap: 1 }}
-          >
-            <Button
-              onClick={() => setDialogOpen(true)}
-              variant="outlined"
-              color="error"
-              size="small"
-              disabled={!selectedNote}
+            autoFocus
+            variant="outlined"
+          />
+          <Divider sx={{ mb: 2, borderColor: "#e0e0e0" }} />
+          {loading ? (
+            <Box
+              sx={{
+                flexGrow: 1,
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                py: 5,
+              }}
             >
-              Eliminar
-            </Button>
-
-            <Button
-              onClick={handleDownload}
-              variant="outlined"
-              color="primary"
-              size="small"
-              disabled={!selectedNote}
+              <CircularProgress color="primary" />
+            </Box>
+          ) : (
+            <List
+              sx={{
+                flexGrow: 1,
+                overflowY: "auto",
+                scrollbarWidth: "thin",
+                scrollbarColor: "#90caf9 transparent",
+                "&::-webkit-scrollbar": { width: 8 },
+                "&::-webkit-scrollbar-track": { background: "transparent" },
+                "&::-webkit-scrollbar-thumb": {
+                  backgroundColor: "#90caf9",
+                  borderRadius: 4,
+                },
+              }}
             >
-              Descargar Acta
-            </Button>
-          </Box>
-        </Box>
+              {filteredFiles.length > 0 ? (
+                filteredFiles.map((file) => (
+                  <ListItemButton
+                    key={file.id}
+                    selected={selectedFile?.id === file.id}
+                    onClick={() => setSelectedFile(file)}
+                    sx={{
+                      borderRadius: 3,
+                      mb: 1,
+                      py: 1.2,
+                      transition: "background-color 0.25s ease",
+                      "&.Mui-selected": {
+                        bgcolor: "primary.light",
+                        color: "primary.contrastText",
+                        fontWeight: 600,
+                        boxShadow: "0 4px 12px rgba(25, 118, 210, 0.2)",
+                        "&:hover": {
+                          bgcolor: "primary.main",
+                        },
+                      },
+                      "&:hover": {
+                        bgcolor: "primary.lighter",
+                      },
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "flex-start",
+                      gap: 0.3,
+                    }}
+                  >
+                    <Typography noWrap variant="subtitle1">
+                      {file.name}
+                    </Typography>
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                      sx={{ fontStyle: "italic" }}
+                      noWrap
+                    >
+                      {file.mimeType}
+                    </Typography>
+                  </ListItemButton>
+                ))
+              ) : (
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  textAlign="center"
+                  sx={{ mt: 5 }}
+                >
+                  No hay archivos.
+                </Typography>
+              )}
+            </List>
+          )}
+        </Paper>
+
+        {/* Vista previa */}
+        <Paper
+          elevation={4}
+          sx={{
+            flexGrow: 1,
+            p: 4,
+            borderRadius: 4,
+            display: "flex",
+            flexDirection: "column",
+            bgcolor: "white",
+            boxShadow:
+              "0 4px 12px rgba(0, 0, 0, 0.05), 0 0 0 1px rgba(0,0,0,0.05)",
+          }}
+        >
+          <Typography
+            variant="h6"
+            fontWeight={700}
+            gutterBottom
+            color="primary.main"
+            sx={{ letterSpacing: 1 }}
+          >
+            📄 Vista previa
+          </Typography>
+          <Divider sx={{ mb: 3, borderColor: "#e0e0e0" }} />
+
+          {selectedFile ? (
+            <>
+              <Box
+                sx={{
+                  flexGrow: 1,
+                  mb: 3,
+                  borderRadius: 3,
+                  overflow: "hidden",
+                  boxShadow: "0 4px 20px rgb(0 0 0 / 0.05)",
+                  bgcolor: "#f9fafb",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {selectedFile.mimeType.includes("image/") && (
+                  <img
+                    src={selectedFile.webContentLink}
+                    alt={selectedFile.name}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      borderRadius: 8,
+                      objectFit: "contain",
+                      display: "block",
+                    }}
+                  />
+                )}
+                {(selectedFile.mimeType === "application/pdf" ||
+                  selectedFile.mimeType.startsWith("text/")) && (
+                  <iframe
+                    title={`Preview of ${selectedFile.name}`}
+                    src={getDrivePreviewUrl(selectedFile)}
+                    style={{
+                      border: "none",
+                      flex: 1,
+                      width: "100%",
+                      height: "100%",
+                    }}
+                  />
+                )}
+                {!selectedFile.mimeType.includes("image/") &&
+                  selectedFile.mimeType !== "application/pdf" &&
+                  !selectedFile.mimeType.startsWith("text/") && (
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ mt: 2, textAlign: "center", fontStyle: "italic" }}
+                    >
+                      Vista previa no disponible para este tipo de archivo.
+                    </Typography>
+                  )}
+              </Box>
+
+              {/* Botones Descargar y Eliminar */}
+              <Stack
+                direction={{ xs: "column", sm: "row" }}
+                spacing={2}
+                justifyContent="flex-start"
+              >
+                <Button
+                  href={selectedFile.webContentLink}
+                  download
+                  target="_blank"
+                  variant="outlined"
+                  startIcon={<DownloadIcon />}
+                >
+                  Descargar
+                </Button>
+                <Button
+                  startIcon={<DeleteForeverIcon />}
+                  color="error"
+                  variant="outlined"
+                  size="large"
+                  sx={{ minWidth: 140 }}
+                  onClick={() => setDialogOpen(true)}
+                >
+                  Eliminar
+                </Button>
+              </Stack>
+            </>
+          ) : (
+            <Typography
+              variant="body1"
+              color="text.secondary"
+              sx={{ textAlign: "center", mt: 10, fontStyle: "italic" }}
+            >
+              Selecciona un archivo para ver la vista previa.
+            </Typography>
+          )}
+        </Paper>
       </Box>
 
-      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
-        <DialogTitle>Confirmar eliminación</DialogTitle>
+      {/* Diálogo de confirmación */}
+      <Dialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        PaperProps={{
+          sx: { borderRadius: 3, p: 2 },
+        }}
+      >
+        <DialogTitle
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1,
+            color: "error.main",
+            fontWeight: 700,
+          }}
+        >
+          <WarningAmberIcon color="error" />
+          Confirmar eliminación
+        </DialogTitle>
         <DialogContent>
-          <DialogContentText>
-            ¿Seguro que deseas eliminar la acta "{selectedNote?.title}"? Esta
-            acción no se puede deshacer.
-          </DialogContentText>
+          <Typography fontSize={16}>
+            ¿Estás seguro de que deseas eliminar{" "}
+            <strong>{selectedFile?.name}</strong>? Esta acción no se puede
+            deshacer.
+          </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDialogOpen(false)}>Cancelar</Button>
-          <Button onClick={handleDeleteConfirm} color="error" autoFocus>
+          <Button onClick={() => setDialogOpen(false)} size="large">
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleDeleteConfirm}
+            variant="contained"
+            color="error"
+            size="large"
+          >
             Eliminar
           </Button>
         </DialogActions>
@@ -239,4 +374,4 @@ const ActaList = ({ ms = [], onDelete }) => {
   );
 };
 
-export default ActaList;
+export default DriveFileViewer;

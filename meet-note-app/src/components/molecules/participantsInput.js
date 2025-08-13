@@ -1,6 +1,11 @@
 // src/components/molecules/ParticipantsInput.js
 import { useState } from "react";
-import { Box, TextField, IconButton, Typography } from "@mui/material";
+import {
+  Box,
+  TextField,
+  IconButton,
+  Typography
+} from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 
@@ -8,7 +13,7 @@ const ParticipantsInput = ({
   participants = [],
   setParticipants,
   error,
-  setError,
+  setError
 }) => {
   const [nuevoParticipante, setNuevoParticipante] = useState("");
 
@@ -24,19 +29,11 @@ const ParticipantsInput = ({
       return;
     }
 
-    // Validar duplicados ignorando mayúsculas y espacios
-    const existe = participants.some(
-      (p) => p.trim().toLowerCase() === nombre.toLowerCase()
-    );
-
-    if (existe) {
-      setError("No se permiten nombres de participantes repetidos.");
-      return;
+    if (!participants.includes(nombre)) {
+      setParticipants([...participants, nombre]);
+      setNuevoParticipante("");
+      setError(null);
     }
-
-    setParticipants([...participants, nombre]);
-    setNuevoParticipante("");
-    setError(null);
   };
 
   const eliminarParticipante = (index) => {
@@ -74,7 +71,7 @@ const ParticipantsInput = ({
             color: "white",
             width: 35,
             height: 35,
-            "&:hover": { bgcolor: "primary.dark" },
+            "&:hover": { bgcolor: "primary.dark" }
           }}
         >
           <AddIcon />
@@ -83,8 +80,8 @@ const ParticipantsInput = ({
 
       <Box
         sx={{
-          maxHeight: 100, // altura fija para la lista
-          overflowY: "auto", // scroll solo aquí
+          maxHeight: 100,       // altura fija para la lista
+          overflowY: "auto",    // scroll solo aquí
           mt: 2,
           border: "1px solid #ddd",
           borderRadius: 1,
@@ -92,7 +89,11 @@ const ParticipantsInput = ({
         }}
       >
         {participants.length === 0 ? (
-          <Typography variant="body2" color="text.secondary" align="center">
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            align="center"
+          >
             No hay participantes agregados.
           </Typography>
         ) : (

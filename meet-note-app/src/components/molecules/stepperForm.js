@@ -12,10 +12,13 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Divider,
 } from "@mui/material";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import { styled } from "@mui/material/styles";
 import GeneratePDF from "./generatePDF";
+import WarningAmberIcon from "@mui/icons-material/WarningAmber";
+import ExportActa from "../organisms/exportActa";
 
 const StepIconRoot = styled("div")(({ theme, ownerState }) => ({
   color:
@@ -49,7 +52,13 @@ const CustomStepIcon = (props) => {
   );
 };
 
-const StepperForm = ({ children, activeStep, setActiveStep, texto }) => {
+const StepperForm = ({
+  children,
+  activeStep,
+  setActiveStep,
+  texto,
+  titulo,
+}) => {
   const steps = React.Children.toArray(children);
   const navigate = useNavigate();
 
@@ -104,48 +113,12 @@ const StepperForm = ({ children, activeStep, setActiveStep, texto }) => {
 
       <Box sx={{ minHeight: 200 }}>
         {activeStep === steps.length ? (
-          <Box
-            sx={{
-              maxWidth: 500,
-              mx: "auto",
-              mt: 6,
-              p: 4,
-              bgcolor: "#f5f5f5",
-              borderRadius: 3,
-              boxShadow: 3,
-              textAlign: "center",
-            }}
-          >
-            <Typography variant="h5" fontWeight="bold" gutterBottom>
-              Exportar Acta Generada
-            </Typography>
-            <Stack
-              direction="row"
-              spacing={4}
-              justifyContent="center"
-              sx={{ mt: 3 }}
-            >
-              <GeneratePDF textoHTML={texto} />
-            </Stack>
-            <Stack spacing={2} direction="row" justifyContent="center">
-              <Button
-                onClick={handleBack}
-                variant="outlined"
-                color="primary"
-                sx={{ fontWeight: 500 }}
-              >
-                Atrás
-              </Button>
-              <Button
-                onClick={handleHome}
-                variant="contained"
-                color="primary"
-                sx={{ fontWeight: 500 }}
-              >
-                Volver al menú principal
-              </Button>
-            </Stack>
-          </Box>
+          <ExportActa
+            texto={texto}
+            handleBack={handleBack}
+            handleHome={handleHome}
+            titulo={titulo}
+          ></ExportActa>
         ) : (
           <>
             {React.cloneElement(steps[activeStep], {
@@ -157,19 +130,47 @@ const StepperForm = ({ children, activeStep, setActiveStep, texto }) => {
         )}
       </Box>
       {/* Diálogo de confirmación */}
+      {/* Diálogo de confirmación */}
       <Dialog open={confirmOpen} onClose={handleConfirmNo}>
-        <DialogTitle>¿Cancelar y salir al menú principal?</DialogTitle>
+        <DialogTitle
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1,
+            fontWeight: "bold",
+            color: "warning.main",
+          }}
+        >
+          <WarningAmberIcon color="warning" />
+          ¿Deseas salir al menú principal?
+        </DialogTitle>
+
         <DialogContent>
-          <Typography>
-            Se perderán los datos no guardados. ¿Desea continuar?
+          <Typography variant="body1" sx={{ mt: 1 }}>
+            Se perderán los datos no guardados.
           </Typography>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleConfirmNo} color="primary">
-            No
+
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button
+            onClick={handleConfirmNo}
+            sx={{
+              fontWeight: 500,
+              textTransform: "none",
+            }}
+          >
+            Cancelar
           </Button>
-          <Button onClick={handleConfirmYes} color="error" variant="contained">
-            Sí, salir
+          <Button
+            onClick={handleConfirmYes}
+            variant="contained"
+            color="error"
+            sx={{
+              fontWeight: 500,
+              textTransform: "none",
+            }}
+          >
+            Salir
           </Button>
         </DialogActions>
       </Dialog>

@@ -16,10 +16,10 @@ import { Backdrop, CircularProgress, Box } from "@mui/material";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { trancribeAudio } from "../services/TranscriptionService";
 import { useState } from "react";
-import ExportActa from "../components/organisms/exportActa";
 
 const RecordPage = () => {
   const [activeStep, setActiveStep] = useState(0);
+  const [titulo, setTitulo] = useState(null);
   const [loading, setLoading] = useState(false);
   const [datosReunion, setDatosReunion] = useState(null);
   const [archivo, setArchivo] = useState(null);
@@ -31,6 +31,7 @@ const RecordPage = () => {
     try {
       setLoading(true);
       setDatosReunion(data);
+      setTitulo(data.titulo);
 
       console.log("Archivo a enviar:", archivo);
       console.log("Es instancia de File:", archivo instanceof File);
@@ -103,7 +104,12 @@ const RecordPage = () => {
   return (
     <>
       <div>
-        <StepperForm activeStep={activeStep} setActiveStep={setActiveStep}>
+        <StepperForm
+          activeStep={activeStep}
+          setActiveStep={setActiveStep}
+          texto={acta}
+          titulo={titulo}
+        >
           <AudioRecorder
             onContinue={handleAudio}
             onCancel={handleCancel}
@@ -120,7 +126,6 @@ const RecordPage = () => {
             onCancel={handleCancel}
             onGuardar={handleGuardarActa}
           ></EditStep>
-          <ExportActa textoPlano={acta}></ExportActa>
         </StepperForm>
       </div>
 

@@ -22,6 +22,7 @@ import ExportActa from "../components/organisms/exportActa";
 const FilePage = () => {
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [titulo, setTitulo] = useState(null);
   const [datosReunion, setDatosReunion] = useState(null);
   const [archivo, setArchivo] = useState(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -32,7 +33,7 @@ const FilePage = () => {
     try {
       setLoading(true);
       setDatosReunion(data);
-
+      setTitulo(data.titulo);
       console.log("Archivo a enviar:", archivo);
       console.log("Es instancia de File:", archivo instanceof File);
       if (archivo) {
@@ -97,7 +98,12 @@ const FilePage = () => {
   return (
     <>
       <div>
-        <StepperForm activeStep={activeStep} setActiveStep={setActiveStep}>
+        <StepperForm
+          activeStep={activeStep}
+          setActiveStep={setActiveStep}
+          texto={acta}
+          titulo={titulo}
+        >
           <UploadStep
             allowedExtensions={["txt", "vtt"]}
             onFileSelected={setArchivo}
@@ -116,7 +122,6 @@ const FilePage = () => {
             onCancel={handleCancel}
             onGuardar={handleGuardarActa}
           ></EditStep>
-          <ExportActa textoPlano={acta}></ExportActa>
         </StepperForm>
       </div>
 
