@@ -90,3 +90,26 @@ export const getUserBasicInfo = async () => {
   const res = await API.get("/auth/google/userinfo");
   return res.data; // { name, photo }
 };
+
+export const descargarArchivo = async (id, nombre) => {
+  const token = localStorage.getItem("token");
+  const res = await fetch(
+    `http://localhost:5000/google/drive/descargar/${id}`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    }
+  );
+
+  if (!res.ok) {
+    console.error("Error descargando archivo:", await res.text());
+    return;
+  }
+
+  const blob = await res.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = nombre;
+  a.click();
+  window.URL.revokeObjectURL(url);
+};

@@ -22,6 +22,7 @@ import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import {
   getArchivosDrive,
   eliminarArchivoDrive,
+  descargarArchivo,
 } from "../../services/googleService";
 
 const DriveFileViewer = () => {
@@ -297,7 +298,9 @@ const DriveFileViewer = () => {
                 justifyContent="flex-start"
               >
                 <Button
-                  href={selectedFile.webContentLink}
+                  onClick={() =>
+                    descargarArchivo(selectedFile.id, selectedFile.name)
+                  }
                   download
                   target="_blank"
                   variant="outlined"
