@@ -8,95 +8,165 @@ import {
   Card,
   CardContent,
   CircularProgress,
-  Chip,
-  Divider,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
+  TextField,
 } from "@mui/material";
 import LoginIcon from "@mui/icons-material/Login";
-import DownloadIcon from "@mui/icons-material/Download";
-import PersonIcon from "@mui/icons-material/Person";
-import GroupIcon from "@mui/icons-material/Group";
 import ButtonStep from "../molecules/buttonsStep";
 import {
   loginGoogle,
   getReuniones,
   getGrabacionesMeet,
-  getTranscripcionesMeet,
+  fetchAndSaveToken,
 } from "../../services/googleService";
 import {
   loginZoom,
-  getTranscripcionesZoom,
   getZoomAccessTokenFromURL,
-  logoutZoom,
+  getReunionesYGrabacionesZoom,
 } from "../../services/zoomService";
 
-const MeetStep = () => {
-  const [platform, setPlatform] = useState(null);
+const MeetStep = ({
+  platform,
+  setPlatform,
+  selectedMeeting,
+  setSelectedMeeting,
+  onContinue,
+  onCancel,
+  handleSelectMeeting,
+}) => {
   const [authenticated, setAuthenticated] = useState(false);
   const [meetings, setMeetings] = useState([]);
-  const [selectedMeeting, setSelectedMeeting] = useState(null);
-  const [showModal, setShowModal] = useState(false);
+  const [filteredMeetings, setFilteredMeetings] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [zoomToken, setZoomToken] = useState("");
+  const [loadingAuth, setLoadingAuth] = useState(false); // ✅ cambio aquí
 
   const handlePlatformChange = (_, newPlatform) => {
     setPlatform(newPlatform);
     setMeetings([]);
+    setFilteredMeetings([]);
     setSelectedMeeting(null);
     setAuthenticated(false);
+    setSearchTerm("");
+    setError("");
   };
 
-  const handleLogin = () => {
+  const fetchReunionesZoom = async (token) => {
+    setLoading(true);
+    setLoadingAuth(true);
+    try {
+      const reuniones = (await getReunionesYGrabacionesZoom(token)) || [];
+
+      // Formatear reuniones para manejo interno y key, sin filtrar
+      const reunionesFormateadas = reuniones.map((r, index) => ({
+        ...r,
+        zoomId: r.id, // ID real de Zoom
+        id: index, // Para key y manejo interno
+        token, // Guardar token por si se necesita después
+      }));
+
+      setMeetings(reunionesFormateadas);
+      setFilteredMeetings(reunionesFormateadas);
+      setAuthenticated(true);
+    } catch (err) {
+      console.error("Error al obtener reuniones de Zoom:", err);
+      setAuthenticated(false);
+    } finally {
+      setLoading(false);
+      setLoadingAuth(false);
+    }
+  };
+
+  useEffect(() => {
+    const token = getZoomAccessTokenFromURL();
+    if (platform === "zoom" && token) {
+      setZoomToken(token);
+      fetchReunionesZoom(token);
+    }
+  }, [platform]);
+
+  const handleLogin = async () => {
     if (platform === "google") {
       loginGoogle();
+    } else if (platform === "zoom") {
+      try {
+        const redirectUrl = await loginZoom();
+        window.open(redirectUrl, "_blank");
+      } catch (err) {
+        console.error("Error al iniciar sesión en Zoom:", err);
+      }
     }
-    // No se implementa loginZoom ni lógica para Zoom en esta versión
   };
 
   const fetchReunionesGoogle = async () => {
     setLoading(true);
+    setLoadingAuth(true);
     try {
-      const data = await getReuniones();
-      setMeetings(data || []);
+      const reuniones = await getReuniones();
+      const grabaciones = await getGrabacionesMeet();
+
+      const reunionesConGrabacion = (reuniones || []).filter((r) =>
+        grabaciones.some(
+          (g) => g.name.includes(r.titulo) || g.name.includes(r.fecha)
+        )
+      );
+
+      setMeetings(reunionesConGrabacion);
+      setFilteredMeetings(reunionesConGrabacion);
       setAuthenticated(true);
     } catch (error) {
       console.error("Error al obtener reuniones de Google:", error);
       setAuthenticated(false);
     }
     setLoading(false);
+    setLoadingAuth(false);
   };
 
   useEffect(() => {
-    if (platform === "google") {
-      fetchReunionesGoogle();
-    } else {
-      // Zoom no cargará reuniones en esta versión
-      setMeetings([]);
-      setAuthenticated(false);
-    }
+    if (platform === "google") fetchReunionesGoogle();
+    else setMeetings([]);
   }, [platform]);
 
-  const formatFecha = (fechaStr) => {
-    if (!fechaStr) return "Fecha inválida";
-    const fecha = new Date(fechaStr);
-    if (isNaN(fecha)) return "Fecha inválida";
-    return fecha.toLocaleDateString("es-EC", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
+  useEffect(() => {
+    if (searchTerm.trim() === "") setFilteredMeetings(meetings);
+    else {
+      const term = searchTerm.toLowerCase();
+      setFilteredMeetings(
+        meetings.filter((m) => (m.titulo || "").toLowerCase().includes(term))
+      );
+    }
+  }, [searchTerm, meetings]);
+
+  const formatFecha = (fecha) => {
+    if (!fecha) return "";
+    if (typeof fecha === "string" && fecha.includes("T")) {
+      return fecha.split("T")[0]; // Devuelve solo 'YYYY-MM-DD'
+    }
+    return fecha; // Si ya viene bien, no la toques
   };
 
-  const handleMeetingClick = async (meeting) => {
+  const handleContinue = () => {
+    console.log("entre");
+    if (!selectedMeeting) {
+      setError("Por favor, selecciona una reunión antes de continuar.");
+      return;
+    }
+    onContinue();
+  };
+
+  const handleMeetingClick = async (meeting, meetingId) => {
     setLoading(true);
+
     try {
+      let token;
+      let grabacionData = null;
+
+      setSelectedMeeting(meeting);
+
       if (platform === "google") {
-        const [grabaciones, transcripciones] = await Promise.all([
-          getGrabacionesMeet(),
-          getTranscripcionesMeet(),
-        ]);
+        token = await fetchAndSaveToken();
+        const grabaciones = await getGrabacionesMeet();
 
         const grabacionMatch = grabaciones.find(
           (file) =>
@@ -104,61 +174,69 @@ const MeetStep = () => {
             file.name.includes(meeting.fecha)
         );
 
-        const transcripcionMatch = transcripciones.find(
-          (file) =>
-            file.name.includes(meeting.titulo) ||
-            file.name.includes(meeting.fecha)
-        );
+        grabacionData = grabacionMatch ? { fileId: grabacionMatch.id } : null;
+      } else if (platform === "zoom") {
+        token = zoomToken;
 
-        setSelectedMeeting({
-          ...meeting,
-          grabacion: grabacionMatch
-            ? grabacionMatch.webContentLink || grabacionMatch.webViewLink
-            : null,
-          transcripcion: transcripcionMatch
-            ? transcripcionMatch.webContentLink ||
-              transcripcionMatch.webViewLink
-            : null,
-        });
+        console.log(token);
 
-        if (!grabacionMatch && !transcripcionMatch) {
-          setShowModal(true);
-        }
-      } else {
-        // Zoom no implementado, solo mostrar reunión sin archivos
-        setSelectedMeeting(meeting);
-        setShowModal(true);
+        console.log("Reunión Zoom completa:", meeting);
+
+        // Usamos la propiedad correcta: "descargar"
+        grabacionData = meeting.grabaciones?.length
+          ? {
+              descargar: meeting.grabaciones[0].descargar,
+              fileId: meeting.grabaciones[0].id,
+            }
+          : null;
+
+        console.log("Download URL seleccionado:", grabacionData?.descargar);
+        console.log("ID seleccionado:", grabacionData?.fileId);
       }
+
+      const meetingData = {
+        ...meeting,
+        meetingId,
+        grabacion: grabacionData,
+        token,
+      };
+      console.log("ID seleccionado:", grabacionData?.fileId);
+      setSelectedMeeting(meetingData);
+      handleSelectMeeting(meetingData);
+      setError("");
     } catch (error) {
-      console.error("Error al cargar archivos de la reunión:", error);
-      setSelectedMeeting(meeting);
-      setShowModal(true);
+      console.error("Error al seleccionar la reunión:", error);
+      setSelectedMeeting({ ...meeting, meetingId });
+      setError("");
     }
+
     setLoading(false);
   };
 
   return (
     <Box
       sx={{
-        maxWidth: 800,
+        maxWidth: 610,
         mx: "auto",
-        mt: 8,
-        p: 4,
-        bgcolor: "#fff",
-        borderRadius: 3,
-        boxShadow: "0 10px 30px rgba(0,0,0,0.1)",
-        position: "relative",
+        mt: 6,
+        p: 3,
+        bgcolor: "background.paper",
+        borderRadius: 4,
+        boxShadow: 6,
+        textAlign: "center",
+        display: "flex",
+        flexDirection: "column",
+        gap: 3,
       }}
     >
-      <Typography variant="h5" fontWeight="bold" textAlign="center" mb={2}>
+      <Typography variant="h5" fontWeight="bold">
         Accede a las reuniones
       </Typography>
-
-      <Typography textAlign="center" mb={2}>
-        Elige la plataforma donde realizaste la reunión:
+      <Typography color="text.secondary">
+        Selecciona la plataforma donde realizaste la reunión:
       </Typography>
 
-      <Box display="flex" justifyContent="center" mb={3}>
+      <Box display="flex" justifyContent="center" mb={4}>
         <ToggleButtonGroup
           value={platform}
           exclusive
@@ -166,31 +244,22 @@ const MeetStep = () => {
           sx={{
             gap: 2,
             "& .MuiToggleButton-root": {
-              px: 4,
+              px: 5,
               py: 1.6,
               borderRadius: 3,
               fontWeight: 600,
               fontSize: "1rem",
               textTransform: "none",
               border: "1px solid #ccc",
-              color: "#333",
-              background: "#fafafa",
-              transition: "all 0.3s ease",
-              boxShadow: "0 2px 4px rgba(0,0,0,0.06)",
-              "&:hover": {
-                backgroundColor: "#e3f2fd",
-                borderColor: "primary.main",
-                boxShadow: "0 4px 10px rgba(0,0,0,0.1)",
-              },
+              background: "#fff",
+              boxShadow: "0 2px 6px rgba(0,0,0,0.05)",
+              transition: "all 0.3s",
+              "&:hover": { bgcolor: "#e3f2fd" },
             },
             "& .MuiToggleButton-root.Mui-selected": {
               bgcolor: "primary.main",
               color: "#fff",
-              fontWeight: "bold",
-              boxShadow: "0 5px 15px rgba(25,118,210,0.4)",
-              "&:hover": {
-                bgcolor: "primary.dark",
-              },
+              boxShadow: "0 4px 12px rgba(25,118,210,0.3)",
             },
           }}
         >
@@ -199,152 +268,162 @@ const MeetStep = () => {
         </ToggleButtonGroup>
       </Box>
 
-      {platform && (
-        <>
-          {!authenticated ? (
-            <Box textAlign="center">
-              <Button
-                variant="contained"
-                startIcon={<LoginIcon />}
-                onClick={handleLogin}
-                sx={{
-                  px: 5,
-                  py: 1.7,
-                  fontWeight: 600,
-                  fontSize: "1rem",
-                  borderRadius: 3,
-                  textTransform: "none",
-                  background: "linear-gradient(to right, #42a5f5, #1e88e5)",
-                  boxShadow: "0 6px 16px rgba(33, 150, 243, 0.4)",
-                  "&:hover": {
-                    background: "linear-gradient(to right, #1e88e5, #1565c0)",
-                    boxShadow: "0 8px 24px rgba(21, 101, 192, 0.5)",
-                  },
-                }}
-              >
-                Iniciar sesión en {platform === "google" ? "Google" : "Zoom"}
-              </Button>
-            </Box>
-          ) : loading ? (
-            <Box
-              sx={{
-                position: "fixed",
-                top: 0,
-                left: 0,
-                width: "100vw",
-                height: "100vh",
-                bgcolor: "rgba(255,255,255,0.6)",
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
-                zIndex: 1300,
-              }}
-            >
-              <CircularProgress />
-            </Box>
-          ) : meetings.length > 0 ? (
-            <>
-              <Box display="grid" gap={2} mb={3}>
-                {meetings.map((meeting, index) => (
-                  <Card
-                    key={index}
-                    variant="outlined"
-                    sx={{ cursor: "pointer" }}
-                    onClick={() => handleMeetingClick(meeting)}
-                  >
-                    <CardContent>
-                      <Typography variant="h6">
-                        {meeting.titulo || "Sin título"}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary" mb={1}>
-                        Fecha: {formatFecha(meeting.fecha)}
-                      </Typography>
-                      <Box display="flex" alignItems="center" gap={1} mb={1}>
-                        <PersonIcon fontSize="small" />
-                        <Typography variant="body2">
-                          Organizador: {meeting.organizador || "Desconocido"}
-                        </Typography>
-                      </Box>
-                      <Box display="flex" alignItems="center" gap={1}>
-                        <GroupIcon fontSize="small" />
-                        <Typography variant="body2">
-                          Participantes:{" "}
-                          {meeting.participantes?.join(", ") ||
-                            "No disponibles"}
-                        </Typography>
-                      </Box>
-                    </CardContent>
-                  </Card>
-                ))}
-              </Box>
+      {platform && authenticated && (
+        <TextField
+          label="Buscar por título"
+          variant="outlined"
+          fullWidth
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          sx={{
+            borderRadius: 3,
+            "& .MuiOutlinedInput-root": { borderRadius: 3 },
+            boxShadow: "0 2px 6px rgba(0,0,0,0.05)",
+          }}
+        />
+      )}
 
-              {selectedMeeting &&
-                (selectedMeeting.grabacion ||
-                  selectedMeeting.transcripcion) && (
-                  <Box mt={4} p={2} border="1px solid #ccc" borderRadius={2}>
-                    <Typography variant="h6" mb={2}>
-                      Archivos de la reunión:{" "}
-                      {selectedMeeting.titulo || "Sin título"}
+      {!authenticated && platform && !loadingAuth && (
+        <Box textAlign="center" mt={4}>
+          <Button
+            variant="contained"
+            startIcon={<LoginIcon />}
+            onClick={handleLogin}
+            sx={{
+              px: 6,
+              py: 1.8,
+              fontWeight: 600,
+              fontSize: "1rem",
+              borderRadius: 3,
+              textTransform: "none",
+              background: "linear-gradient(to right, #42a5f5, #1e88e5)",
+              boxShadow: "0 6px 16px rgba(33,150,243,0.4)",
+              "&:hover": {
+                background: "linear-gradient(to right, #1e88e5, #1565c0)",
+                boxShadow: "0 8px 24px rgba(21,101,192,0.5)",
+              },
+            }}
+          >
+            Iniciar sesión
+          </Button>
+        </Box>
+      )}
+
+      {loading && (
+        <Box
+          sx={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100vw",
+            height: "100vh",
+            bgcolor: "rgba(255,255,255,0.6)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            zIndex: 1300,
+          }}
+        >
+          <CircularProgress />
+        </Box>
+      )}
+
+      {platform && authenticated && (
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 2,
+            maxHeight: 300,
+            height: 300,
+            borderRadius: 2,
+            overflowY: "auto",
+            px: 1,
+            p: 1,
+            border: "1px solid #ccc",
+            backgroundColor: "#ffffff",
+          }}
+        >
+          {filteredMeetings.length > 0 ? (
+            filteredMeetings.map((meeting, index) => {
+              const meetingId =
+                meeting.id ||
+                meeting.zoomId ||
+                `${meeting.titulo}-${meeting.fecha}` ||
+                index;
+              const isSelected = selectedMeeting?.meetingId === meetingId;
+
+              return (
+                <Card
+                  key={meetingId}
+                  onClick={() => handleMeetingClick(meeting, meetingId)}
+                  sx={{
+                    borderRadius: 3,
+                    cursor: "pointer",
+                    border: isSelected
+                      ? "2px solid #1976d2"
+                      : "1px solid #e0e0e0",
+                    backgroundColor: isSelected ? "#e3f2fd" : "#ffffff",
+                    boxShadow: isSelected
+                      ? "0 4px 10px rgba(25,118,210,0.2)"
+                      : "0 1px 3px rgba(0,0,0,0.05)",
+                    transition: "all 0.2s ease-in-out",
+                    "&:hover": { backgroundColor: "#bcddffff" },
+                  }}
+                >
+                  <CardContent
+                    sx={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: 2,
+                    }}
+                  >
+                    <Typography
+                      fontWeight={600}
+                      sx={{
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        maxWidth: "70%",
+                      }}
+                      title={meeting.titulo}
+                    >
+                      {meeting.titulo || "Sin título"}
                     </Typography>
-                    <Divider sx={{ mb: 2 }} />
-                    <Box display="flex" gap={2} flexWrap="wrap">
-                      {selectedMeeting.grabacion && (
-                        <Chip
-                          label="Descargar grabación"
-                          color="primary"
-                          onClick={() => window.open(selectedMeeting.grabacion)}
-                          icon={<DownloadIcon />}
-                          clickable
-                        />
-                      )}
-                      {selectedMeeting.transcripcion && (
-                        <Chip
-                          label="Descargar transcripción"
-                          color="secondary"
-                          onClick={() =>
-                            window.open(selectedMeeting.transcripcion)
-                          }
-                          icon={<DownloadIcon />}
-                          clickable
-                        />
-                      )}
-                    </Box>
-                  </Box>
-                )}
-
-              {/* Modal de reunión sin archivos */}
-              <Dialog open={showModal} onClose={() => setShowModal(false)}>
-                <DialogTitle>Sin archivos disponibles</DialogTitle>
-                <DialogContent>
-                  <Typography>
-                    Esta reunión no tiene grabación ni transcripción.
-                  </Typography>
-                </DialogContent>
-                <DialogActions>
-                  <Button
-                    onClick={() => setShowModal(false)}
-                    color="primary"
-                    autoFocus
-                  >
-                    Cerrar
-                  </Button>
-                </DialogActions>
-              </Dialog>
-            </>
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ textAlign: "right" }}
+                    >
+                      {formatFecha(meeting.fecha)}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              );
+            })
           ) : (
-            <Typography textAlign="center" color="text.secondary" mt={3}>
+            <Typography color="text.secondary" textAlign="center" mt={2}>
               No se encontraron reuniones con grabaciones o transcripciones.
             </Typography>
           )}
-        </>
+        </Box>
+      )}
+
+      {error && (
+        <Box>
+          <Typography color="error" variant="body2">
+            {error}
+          </Typography>
+        </Box>
       )}
 
       <Box mt={4} textAlign="right">
         <ButtonStep
           hideBack={true}
           onBack={() => console.log("Atrás")}
-          onCancel={() => console.log("Cancelar")}
-          onContinue={() => console.log("Continuar")}
+          onCancel={onCancel}
+          onContinue={handleContinue}
         />
       </Box>
     </Box>

@@ -17,7 +17,6 @@ import FormStep from "../components/organisms/formStep";
 import EditStep from "../components/organisms/editStep";
 import { transcribeVideo } from "../services/TranscriptionService";
 import { useState } from "react";
-import ExportActa from "../components/organisms/exportActa";
 
 const VideoPage = () => {
   const [activeStep, setActiveStep] = useState(0);
@@ -112,6 +111,7 @@ const VideoPage = () => {
             onCancel={handleCancel}
           />
           <FormStep
+            data={datosReunion}
             onGuardar={handleGuardar}
             onBack={handleNavigationBack}
             onCancel={handleCancel}

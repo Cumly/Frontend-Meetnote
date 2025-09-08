@@ -11,41 +11,58 @@ import {
   Button,
   Typography,
 } from "@mui/material";
-import AudioRecorder from "../components/molecules/audioRecorder";
 import { marked } from "marked";
 import { Backdrop, CircularProgress, Box } from "@mui/material";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
-import { trancribeAudio } from "../services/TranscriptionService";
+import { trancribeGoogle } from "../services/TranscriptionService";
 import { useState } from "react";
-import ExportActa from "../components/organisms/exportActa";
+
 const MeetPage = () => {
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [titulo, setTitulo] = useState(null);
   const [datosReunion, setDatosReunion] = useState(null);
-  const [archivo, setArchivo] = useState(null);
+  const [archivo, setArchivo] = useState("");
+  const [token, setToken] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [acta, setActa] = useState(null);
   const navigate = useNavigate();
+  const [platform, setPlatform] = useState(null);
+  const [selectedMeeting, setSelectedMeeting] = useState(null);
+
+  const handleSelectMeeting = (meetingData) => {
+    setTitulo(meetingData.titulo);
+    setToken(meetingData.token);
+
+    // Determinar archivo según plataforma
+    let archivoSeleccionado;
+    if (platform === "zoom") {
+      archivoSeleccionado = meetingData.grabacion?.descargar;
+    } else if (platform === "google") {
+      archivoSeleccionado = meetingData.grabacion?.fileId;
+    }
+    setArchivo(archivoSeleccionado || meetingData.id);
+
+    console.log("Archivo seleccionado:", archivoSeleccionado);
+  };
 
   const handleGuardar = async (data) => {
     try {
       setLoading(true);
       setDatosReunion(data);
       setTitulo(data.titulo);
-      console.log("Archivo a enviar:", archivo);
-      console.log("Es instancia de File:", archivo instanceof File);
+
       if (archivo) {
-        const resultado = await trancribeAudio(
+        const resultado = await trancribeGoogle(
           archivo,
+          token,
+          platform,
           data.titulo, // Título del acta
           data.fecha, // Fecha de reunión
           data.horaInicio, // Hora de inicio
           data.horaFin, // Hora de fin
           data.participantes // Lista de participantes
         );
-
-        console.log("Respuesta de transcripción:", resultado);
 
         // Accede al contenido del acta
         const actaMarkdown = resultado["Acta generada"];
@@ -64,13 +81,6 @@ const MeetPage = () => {
     } finally {
       setLoading(false); // Ocultar loading
     }
-  };
-
-  const handleAudio = (audioBlob) => {
-    if (audioBlob) {
-      setArchivo(audioBlob); // Guardamos el audio en el estado
-    }
-    handleContinue();
   };
 
   const handleGuardarActa = (contenidoEditado) => {
@@ -110,8 +120,18 @@ const MeetPage = () => {
           texto={acta}
           titulo={titulo}
         >
-          <MeetStep></MeetStep>
+          <MeetStep
+            platform={platform}
+            setPlatform={setPlatform}
+            selectedMeeting={selectedMeeting}
+            setSelectedMeeting={setSelectedMeeting}
+            handleSelectMeeting={handleSelectMeeting}
+            onContinue={handleContinue}
+            onCancel={handleCancel}
+          />
           <FormStep
+            data={datosReunion}
+            meeting={selectedMeeting} // <-- pasa la reunión seleccionada
             onGuardar={handleGuardar}
             onBack={handleNavigationBack}
             onCancel={handleCancel}
@@ -122,7 +142,6 @@ const MeetPage = () => {
             onCancel={handleCancel}
             onGuardar={handleGuardarActa}
           ></EditStep>
-          <ExportActa textoPlano={acta}></ExportActa>
         </StepperForm>
       </div>
 
@@ -137,9 +156,7 @@ const MeetPage = () => {
           ¿Cancelar proceso?
         </DialogTitle>
         <DialogContent>
-          <Typography>
-            Se perderá el archivo seleccionado. ¿Desea continuar?
-          </Typography>
+          <Typography>Se perdera el proceso. ¿Desea continuar?</Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={handleConfirmNo}>No</Button>
@@ -159,7 +176,7 @@ const MeetPage = () => {
         <CircularProgress color="inherit" />
         <Box mt={2}>
           <Typography variant="h6" align="center">
-            Procesando transcripción...
+            Procesando grabación de la reunión...
           </Typography>
         </Box>
       </Backdrop>

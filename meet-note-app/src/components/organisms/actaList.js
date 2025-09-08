@@ -44,10 +44,6 @@ const DriveFileViewer = () => {
       setLoading(false);
     }
   };
-  const getDownloadUrl = (file) => {
-    // Enlace para descarga directa
-    return `https://drive.google.com/uc?export=download&id=${file.id}`;
-  };
 
   useEffect(() => {
     loadFiles();

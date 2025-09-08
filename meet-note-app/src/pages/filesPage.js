@@ -112,6 +112,7 @@ const FilePage = () => {
             onCancel={handleCancel}
           />
           <FormStep
+            data={datosReunion}
             onGuardar={handleGuardar}
             onBack={handleNavigationBack}
             onCancel={handleCancel}

@@ -115,6 +115,7 @@ const RecordPage = () => {
             onCancel={handleCancel}
           ></AudioRecorder>
           <FormStep
+            data={datosReunion}
             onGuardar={handleGuardar}
             onBack={handleNavigationBack}
             onCancel={handleCancel}

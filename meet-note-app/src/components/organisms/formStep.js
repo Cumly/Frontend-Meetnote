@@ -18,7 +18,7 @@ const style = {
   margin: "auto",
 };
 
-const FormStep = ({ onGuardar, onBack, onCancel }) => {
+const FormStep = ({ meeting, onGuardar, onBack, onCancel, data }) => {
   const [titulo, setTitulo] = useState("");
   const [fecha, setFecha] = useState("");
   const [horaInicio, setHoraInicio] = useState("");
@@ -27,9 +27,39 @@ const FormStep = ({ onGuardar, onBack, onCancel }) => {
   const [participantesError, setParticipantesError] = useState(null);
   const [errors, setErrors] = useState({});
 
+  const formatFechaInput = (fecha) => {
+    if (!fecha) return "";
+    if (typeof fecha === "string" && fecha.includes("T")) {
+      return fecha.split("T")[0]; // Devuelve solo 'YYYY-MM-DD'
+    }
+    return fecha; // Si ya viene bien, no la toques
+  };
+
   useEffect(() => {
-    resetForm();
-  }, []);
+    const source = data || meeting; // Prioriza data, si no usa meeting
+
+    console.log(source);
+
+    if (source) {
+      setTitulo(source.titulo || "");
+
+      setFecha(formatFechaInput(source.fecha));
+
+      setHoraInicio(source.horaInicio || "");
+      setHoraFin(source.horaFin || "");
+      if (data) {
+        setParticipantes(data.participantes || []);
+      } else {
+        setParticipantes(
+          source.participantes
+            ?.filter((p) => p.displayName)
+            .map((p) => p.displayName) || []
+        );
+      }
+    } else {
+      resetForm();
+    }
+  }, [data, meeting]);
 
   const resetForm = () => {
     setTitulo("");
@@ -77,15 +107,15 @@ const FormStep = ({ onGuardar, onBack, onCancel }) => {
         "La hora de fin no puede ser anterior a la de inicio.";
     }
 
-    if (participantes.length === 0) {
-      setParticipantesError("Debe agregar al menos un participante.");
+    if (participantes.length < 2) {
+      setParticipantesError("Debe agregar al menos dos participantes.");
+      nuevosErrores.participantes = "Debe agregar al menos dos participantes.";
     } else {
       setParticipantesError(null);
     }
-
     setErrors(nuevosErrores);
 
-    if (Object.keys(nuevosErrores).length === 0 && participantes.length > 0) {
+    if (Object.keys(nuevosErrores).length === 0 && participantes.length >= 2) {
       onGuardar({ titulo, fecha, horaInicio, horaFin, participantes });
     }
   };
@@ -117,6 +147,16 @@ const FormStep = ({ onGuardar, onBack, onCancel }) => {
           }}
           error={errors.fecha}
           sx={{ mt: 2 }}
+          inputProps={{
+            min: new Date(new Date().setFullYear(new Date().getFullYear() - 2))
+              .toISOString()
+              .split("T")[0], // fecha mínima hace 2 años
+            max: (() => {
+              const today = new Date();
+              today.setMonth(today.getMonth() - 6);
+              return today.toISOString().split("T")[0];
+            })(), // fecha máxima hace 6 meses
+          }}
         />
 
         <Box display="flex" gap={2} mt={2}>

@@ -2,39 +2,56 @@
 import axios from "axios";
 
 // URL base de tu backend FastAPI
-const API_BASE = "http://localhost:8000";
+const API_BASE = "http://localhost:5005"; // coincide con el puerto del backend
 
 export const loginZoom = () => {
   // Redirige a /login en tu backend (inicia OAuth con Zoom)
   window.location.href = `${API_BASE}/login`;
 };
 
-export const getTranscripcionesZoom = async (accessToken) => {
+export const getReunionesYGrabacionesZoom = async (accessToken) => {
   try {
-    const { data } = await axios.get(`${API_BASE}/transcriptions`, {
+    const { data } = await axios.get(`${API_BASE}/reuniones-grabaciones`, {
       params: { access_token: accessToken },
     });
 
-    if (data.transcriptions) {
-      return data.transcriptions.map((t) => ({
-        titulo: t.meeting_topic || "Sin título",
-        fecha: t.start_time,
-        organizador: "Zoom", // Puedes ajustarlo si hay datos de host
-        participantes: [],
-        grabacion: null, // No lo devuelve el backend, solo transcripciones
-        transcripcion: t.transcription_url,
+    console.log("Data completa de Zoom:", data); // 🔍 inspecciona la respuesta
+
+    if (data.meetings) {
+      const reunionesConGrabaciones = data.meetings.filter(
+        (m) => m.recordings && m.recordings.length > 0
+      );
+
+      return reunionesConGrabaciones.map((m) => ({
+        titulo: m.meeting_topic || "Sin título",
+        fecha: m.start_time,
+        organizador: "Zoom",
+        // ID de la primera grabación disponible
+        fileId: m.recordings[0].id,
+        grabaciones: m.recordings.map((r) => ({
+          id: r.id,
+          tipo: r.file_type,
+          reproducir: r.play_url,
+          descargar: r.download_url,
+        })),
+        // Participantes obtenidos del backend
+        participantes: m.participants
+          ? m.participants.map((p) => ({
+              nombre: p.name,
+              email: p.email,
+            }))
+          : [],
       }));
     } else {
       return [];
     }
   } catch (error) {
-    console.error("Error al obtener transcripciones de Zoom:", error);
+    console.error("Error al obtener reuniones y grabaciones de Zoom:", error);
     return [];
   }
 };
 
 export const logoutZoom = () => {
-  // Simplemente eliminamos el token de localStorage
   localStorage.removeItem("zoom_access_token");
   window.location.reload();
 };

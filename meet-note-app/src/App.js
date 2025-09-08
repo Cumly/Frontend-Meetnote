@@ -1,5 +1,4 @@
-import React, { useContext, useEffect } from "react";
-import { AuthContext } from "./context/AuthContext";
+import React, { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import MainLayout from "./layout/mainLayout";
 import HomePage from "./pages/homePage";
@@ -8,29 +7,52 @@ import RecordPage from "./pages/recordPage";
 import VideoPage from "./pages/videoPage";
 import HistorialPage from "./pages/historialPage";
 import MeetPage from "./pages/meetPage";
-import { logoutGoogle, fetchAndSaveToken } from "../src/services/googleService"; // Asegúrate de importar la función logoutGoogle
+import { fetchAndSaveToken } from "../src/services/googleService";
+import { Box } from "@mui/material";
 
 function App() {
-  const { loading } = useContext(AuthContext);
-
-  const handleLogout = async () => {
-    try {
-      await logoutGoogle(); // Llamamos a la API para cerrar sesión
-      // Aquí podrías redirigir al usuario a la página de login
-      window.location.href = "/auth/google/login"; // O usa navigate para redirigir si es necesario
-    } catch (error) {
-      console.error("Error al cerrar sesión:", error);
-    }
-  };
+  const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    // Intenta obtener token solo cuando el componente monta
-    fetchAndSaveToken().catch(() => {
-      console.log("No hay sesión activa aún");
-    });
-  }, []);
-  if (loading) return null; // o un spinner
+    const verificarSesion = async () => {
+      try {
+        const token = await fetchAndSaveToken(); // Debería lanzar error si no hay sesión
+        if (token) {
+          setIsAuthenticated(true);
+        }
+      } catch (error) {
+        console.log("No hay sesión activa aún");
+        setIsAuthenticated(false);
+      } finally {
+        setLoading(false);
+      }
+    };
 
+    verificarSesion();
+  }, []);
+
+  if (loading) {
+    return (
+      <Box
+        sx={{
+          width: "100vw",
+          height: "100vh",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          alignItems: "center",
+          bgcolor: "#fff",
+        }}
+      ></Box>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return null; // ya se redirigió a Google
+  }
+
+  // Si hay sesión, renderiza todo
   return (
     <BrowserRouter>
       <Routes>

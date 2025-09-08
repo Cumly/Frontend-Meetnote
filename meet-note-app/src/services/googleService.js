@@ -1,5 +1,10 @@
 import axios from "axios";
 
+// ======================= AUTH =======================
+export const loginGoogle = () => {
+  window.location.href = "http://localhost:5000/auth/google/login";
+};
+
 export const fetchAndSaveToken = async () => {
   try {
     const res = await axios.get("http://localhost:5000/auth/google/token", {
@@ -7,8 +12,10 @@ export const fetchAndSaveToken = async () => {
     });
     const token = res.data.token;
     localStorage.setItem("token", token);
+    return token;
   } catch (error) {
     console.error("Error obteniendo token:", error);
+    return null;
   }
 };
 
@@ -16,11 +23,6 @@ const API = axios.create({
   baseURL: "http://localhost:5000",
   withCredentials: true,
 });
-
-// ======================= AUTH =======================
-export const loginGoogle = () => {
-  window.location.href = "http://localhost:5000/auth/google/login";
-};
 
 export const logoutGoogle = async () => {
   try {
@@ -75,14 +77,48 @@ export const eliminarArchivoDrive = async (fileId) => {
 };
 
 // =========== GRABACIONES Y TRANSCRIPCIONES ==========
-export const getGrabacionesMeet = async () => {
-  const res = await API.get("/google/drive/grabaciones");
-  return res.data;
+export const getGrabacionesMeet = async (id = null) => {
+  const token = localStorage.getItem("token");
+
+  // Llamamos al endpoint existente
+  const url = `http://localhost:5000/google/drive/grabaciones`;
+
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+    credentials: "include", // <--- importante para enviar cookies
+  });
+
+  if (!res.ok) {
+    console.error("Error al obtener grabaciones:", await res.text());
+    return [];
+  }
+
+  const grabaciones = await res.json();
+
+  // Filtramos si hay id
+  if (id) {
+    const encontrada = grabaciones.find((g) => g.id === id);
+    return encontrada ? [encontrada] : [];
+  }
+
+  return grabaciones;
 };
 
 export const getTranscripcionesMeet = async () => {
-  const res = await API.get("/google/drive/transcripciones");
-  return res.data;
+  const token = await fetchAndSaveToken();
+  const res = await fetch(
+    "http://localhost:5000/google/drive/transcripciones",
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    }
+  );
+
+  if (!res.ok) {
+    console.error("Error al obtener transcripciones:", await res.text());
+    return [];
+  }
+
+  return await res.json();
 };
 
 // Función para obtener nombre e ícono (foto) del usuario
