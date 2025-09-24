@@ -11,11 +11,17 @@ const MainLayout = () => {
   const handleLogout = async () => {
     await logoutGoogle();
     setUser(null);
-    window.location.reload(); // recargar para volver al login
+    window.location.reload();
   };
 
   return (
-    <div>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        minHeight: "100vh", // ocupa toda la pantalla
+      }}
+    >
       <header
         style={{
           display: "flex",
@@ -30,7 +36,8 @@ const MainLayout = () => {
           <ProfileAvatar userPhoto={user?.photo} onLogout={handleLogout} />
         )}
       </header>
-      <main>
+
+      <main style={{ flexGrow: 1 }}>
         <Outlet />
       </main>
     </div>

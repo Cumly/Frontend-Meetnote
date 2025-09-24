@@ -84,7 +84,7 @@ const StepperForm = ({
   return (
     <Box
       sx={{
-        width: "100%",
+        width: "80%",
         maxWidth: 1500,
         margin: "0 auto",
         textAlign: "center",

@@ -18,7 +18,7 @@ const style = {
   margin: "auto",
 };
 
-const FormStep = ({ meeting, onGuardar, onBack, onCancel, data }) => {
+const FormStep = ({ meeting, onGuardar, onBack, onCancel, data, nuevo }) => {
   const [titulo, setTitulo] = useState("");
   const [fecha, setFecha] = useState("");
   const [horaInicio, setHoraInicio] = useState("");
@@ -36,28 +36,28 @@ const FormStep = ({ meeting, onGuardar, onBack, onCancel, data }) => {
   };
 
   useEffect(() => {
-    const source = data || meeting; // Prioriza data, si no usa meeting
+    if (!nuevo) {
+      const source = data || meeting; // Prioriza data, si no usa meeting
 
-    console.log(source);
+      if (source) {
+        setTitulo(source.titulo || "");
 
-    if (source) {
-      setTitulo(source.titulo || "");
+        setFecha(formatFechaInput(source.fecha));
 
-      setFecha(formatFechaInput(source.fecha));
-
-      setHoraInicio(source.horaInicio || "");
-      setHoraFin(source.horaFin || "");
-      if (data) {
-        setParticipantes(data.participantes || []);
+        setHoraInicio(source.horaInicio || "");
+        setHoraFin(source.horaFin || "");
+        if (data) {
+          setParticipantes(data.participantes || []);
+        } else {
+          setParticipantes(
+            source.participantes
+              ?.filter((p) => p.displayName)
+              .map((p) => p.displayName) || []
+          );
+        }
       } else {
-        setParticipantes(
-          source.participantes
-            ?.filter((p) => p.displayName)
-            .map((p) => p.displayName) || []
-        );
+        resetForm();
       }
-    } else {
-      resetForm();
     }
   }, [data, meeting]);
 
@@ -102,9 +102,22 @@ const FormStep = ({ meeting, onGuardar, onBack, onCancel, data }) => {
 
     if (!horaFin) {
       nuevosErrores.horaFin = "La hora de fin es obligatoria";
+    } else if (horaInicio && horaFin === horaInicio) {
+      nuevosErrores.horaFin =
+        "La hora de fin no puede ser igual a la de inicio.";
     } else if (horaInicio && horaFin < horaInicio) {
       nuevosErrores.horaFin =
         "La hora de fin no puede ser anterior a la de inicio.";
+    } else if (horaInicio) {
+      const inicio = new Date(`1970-01-01T${horaInicio}:00`);
+      const fin = new Date(`1970-01-01T${horaFin}:00`);
+      const diffMs = fin - inicio;
+
+      if (diffMs < 5 * 60 * 1000) {
+        // menos de 5 minutos
+        nuevosErrores.horaFin =
+          "La hora de fin debe tener al menos 5 minutos de diferencia con la de inicio.";
+      }
     }
 
     if (participantes.length < 2) {
@@ -118,6 +131,13 @@ const FormStep = ({ meeting, onGuardar, onBack, onCancel, data }) => {
     if (Object.keys(nuevosErrores).length === 0 && participantes.length >= 2) {
       onGuardar({ titulo, fecha, horaInicio, horaFin, participantes });
     }
+  };
+  const getLocalDateISO = (date) => {
+    const tzOffset = date.getTimezoneOffset() * 60000; // offset en milisegundos
+    const localISO = new Date(date.getTime() - tzOffset)
+      .toISOString()
+      .split("T")[0];
+    return localISO;
   };
 
   return (
@@ -136,7 +156,6 @@ const FormStep = ({ meeting, onGuardar, onBack, onCancel, data }) => {
           }}
           error={errors.titulo}
         />
-
         <CustomInput
           label="Fecha de la reunión"
           type="date"
@@ -148,14 +167,10 @@ const FormStep = ({ meeting, onGuardar, onBack, onCancel, data }) => {
           error={errors.fecha}
           sx={{ mt: 2 }}
           inputProps={{
-            min: new Date(new Date().setFullYear(new Date().getFullYear() - 2))
-              .toISOString()
-              .split("T")[0], // fecha mínima hace 2 años
-            max: (() => {
-              const today = new Date();
-              today.setMonth(today.getMonth() - 6);
-              return today.toISOString().split("T")[0];
-            })(), // fecha máxima hace 6 meses
+            min: getLocalDateISO(
+              new Date(new Date().setFullYear(new Date().getFullYear() - 1))
+            ),
+            max: getLocalDateISO(new Date()),
           }}
         />
 
@@ -186,9 +201,7 @@ const FormStep = ({ meeting, onGuardar, onBack, onCancel, data }) => {
             sx={{ flex: 1 }}
           />
         </Box>
-
         <Divider sx={{ my: 3 }} />
-
         <ParticipantsInput
           participants={participantes}
           setParticipants={setParticipantes}

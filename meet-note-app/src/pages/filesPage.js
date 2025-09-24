@@ -7,7 +7,6 @@ import {
   Button,
   Typography,
 } from "@mui/material";
-import { marked } from "marked";
 import { Backdrop, CircularProgress, Box } from "@mui/material";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 
@@ -16,7 +15,7 @@ import StepperForm from "../components/molecules/stepperForm";
 import FormStep from "../components/organisms/formStep";
 import EditStep from "../components/organisms/editStep";
 import { transcribeText } from "../services/TranscriptionService";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import ExportActa from "../components/organisms/exportActa";
 
 const FilePage = () => {
@@ -27,40 +26,150 @@ const FilePage = () => {
   const [archivo, setArchivo] = useState(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [acta, setActa] = useState(null);
+  const [nuevo, setNuevo] = useState(false);
   const navigate = useNavigate();
+  const [resultado, setResultado] = useState({
+    // datos crudos de la API
+    temas: "",
+    acuerdos: "",
+    conclusiones: "",
+  });
+
+  const [progreso, setProgreso] = useState(0);
+  const [mensaje, setMensaje] = useState("Iniciando...");
+  const [idOperacion, setIdOperacion] = useState(null);
+
+  const generarId = () => {
+    return (
+      "op_" +
+      Date.now().toString(36) +
+      "_" +
+      Math.random().toString(36).substring(2, 8)
+    );
+  };
+  useEffect(() => {
+    let isActive = true;
+
+    const consultarProgreso = async () => {
+      if (!loading || !idOperacion) return;
+
+      try {
+        const res = await fetch(
+          `http://127.0.0.1:8000/api/generateActaFromInput/getProgress/${idOperacion}/`
+        );
+        const data = await res.json();
+
+        if (isActive) {
+          setProgreso(data.progreso.porcentaje);
+          setMensaje(data.progreso.mensaje);
+
+          if (data.progreso.porcentaje < 100) {
+            setTimeout(consultarProgreso, 1500);
+          } else {
+            setLoading(false);
+          }
+        }
+      } catch (error) {
+        console.error("Error consultando progreso:", error);
+        setLoading(false);
+      }
+    };
+
+    if (loading) {
+      consultarProgreso();
+    }
+
+    return () => {
+      isActive = false;
+    };
+  }, [loading, idOperacion]);
+
+  const handleGenerar = async () => {
+    try {
+      const id = generarId();
+      setIdOperacion(id);
+      setLoading(true);
+      if (archivo) {
+        const respuesta = await transcribeText(archivo, id);
+
+        console.log("Respuesta de transcripción:", resultado);
+        // 🔥 Guardar en contexto
+        setResultado({
+          temas: respuesta.temas || "",
+          acuerdos: respuesta.acuerdos || "",
+          conclusiones: respuesta.conclusiones || "",
+        });
+      } else {
+        console.warn("No se ha cargado un archivo.");
+      }
+      setNuevo(true);
+      handleContinue();
+    } catch (error) {
+      console.error("Error al generar acta:", error);
+      // Aquí puedes mostrar un mensaje al usuario si lo deseas
+    }
+  };
 
   const handleGuardar = async (data) => {
     try {
       setLoading(true);
       setDatosReunion(data);
       setTitulo(data.titulo);
-      console.log("Archivo a enviar:", archivo);
-      console.log("Es instancia de File:", archivo instanceof File);
-      if (archivo) {
-        const resultado = await transcribeText(
-          archivo,
-          data.titulo, // Título del acta
-          data.fecha, // Fecha de reunión
-          data.horaInicio, // Hora de inicio
-          data.horaFin, // Hora de fin
-          data.participantes // Lista de participantes
-        );
 
-        console.log("Respuesta de transcripción:", resultado);
+      const actaHtml = `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6;">
 
-        // Accede al contenido del acta
-        const actaMarkdown = resultado["Acta generada"];
+        <h2 style="text-align:center; margin-bottom: 20px;">Acta de Reunión</h2>
 
-        // Convertir markdown a HTML para CKEditor
-        const actaHtml = marked.parse(actaMarkdown);
+    <ol style="margin-bottom: 20px;">
+  <li><b>Título:</b> ${data.titulo}</li>
+  <li><b>Fecha:</b> ${data.fecha}</li>
+  <li><b>Hora inicio:</b> ${data.horaInicio}</li>
+  <li><b>Hora fin:</b> ${data.horaFin}</li>
+  <li><b>Participantes:</b> ${
+    Array.isArray(data.participantes)
+      ? data.participantes
+          .map((p) =>
+            String(p)
+              .toLowerCase()
+              .replace(/\b\w/g, (c) => c.toUpperCase())
+          )
+          .join(", ")
+      : String(data.participantes || "")
+          .toLowerCase()
+          .replace(/\b\w/g, (c) => c.toUpperCase())
+  }</li>
+</ol>
+    <hr style="margin: 20px 0; border: 1px solid #ccc;" />
 
-        setActa(actaHtml);
-        handleContinue();
-      } else {
-        console.warn("No se ha cargado un archivo.");
-      }
+    <h3 style="color:#333;">Temas discutidos</h3>
+    <ul>
+      ${resultado.temas
+        .split("•")
+        .filter((t) => t.trim())
+        .map((t) => `<li>${t.trim()}</li>`)
+        .join("")}
+    </ul>
+
+    <h3 style="color:#333;">Decisiones y acuerdos</h3>
+    <ul>
+      ${resultado.acuerdos
+        .split("•")
+        .filter((a) => a.trim())
+        .map((a) => `<li>${a.trim()}</li>`)
+        .join("")}
+    </ul>
+
+    <h3 style="color:#333;">Observaciones y conclusiones</h3>
+    <p>${resultado.conclusiones}</p>
+
+  </div>
+`;
+      setActa(actaHtml);
+      setNuevo(false);
+      handleContinue();
     } catch (error) {
-      console.error("Error al transcribir:", error);
+      console.error("Error al ingresar al transformar en HTML:", error);
       // Aquí puedes mostrar un mensaje al usuario si lo deseas
     } finally {
       setLoading(false); // Ocultar loading
@@ -107,11 +216,12 @@ const FilePage = () => {
           <UploadStep
             allowedExtensions={["txt", "vtt"]}
             onFileSelected={setArchivo}
-            onContinue={handleContinue}
+            onContinue={handleGenerar}
             file={archivo}
             onCancel={handleCancel}
           />
           <FormStep
+            nuevo={nuevo}
             data={datosReunion}
             onGuardar={handleGuardar}
             onBack={handleNavigationBack}
@@ -148,6 +258,7 @@ const FilePage = () => {
           </Button>
         </DialogActions>
       </Dialog>
+      {/* Backdrop con progreso */}
       <Backdrop
         sx={{
           color: "#fff",
@@ -156,10 +267,28 @@ const FilePage = () => {
         }}
         open={loading}
       >
-        <CircularProgress color="inherit" />
+        <Box sx={{ position: "relative", display: "inline-flex" }}>
+          <CircularProgress variant="determinate" value={progreso} size={100} />
+          <Box
+            sx={{
+              top: 0,
+              left: 0,
+              bottom: 0,
+              right: 0,
+              position: "absolute",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Typography variant="h6" component="div" sx={{ color: "#fff" }}>
+              {`${Math.round(progreso)}%`}
+            </Typography>
+          </Box>
+        </Box>
         <Box mt={2}>
-          <Typography variant="h6" align="center">
-            Procesando transcripción...
+          <Typography variant="h6" align="center" sx={{ color: "#fff" }}>
+            {mensaje}
           </Typography>
         </Box>
       </Backdrop>

@@ -24,6 +24,8 @@ import {
   eliminarArchivoDrive,
   descargarArchivo,
 } from "../../services/googleService";
+import { IconButton } from "@mui/material";
+import RefreshIcon from "@mui/icons-material/Refresh";
 
 const DriveFileViewer = () => {
   const [files, setFiles] = useState([]);
@@ -102,15 +104,35 @@ const DriveFileViewer = () => {
               "0 4px 12px rgba(0, 0, 0, 0.05), 0 0 0 1px rgba(0,0,0,0.05)",
           }}
         >
-          <Typography
-            variant="h6"
-            fontWeight={700}
-            gutterBottom
-            color="primary.main"
-            sx={{ letterSpacing: 1 }}
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              mb: 1,
+            }}
           >
-            📂 Actas Generadas
-          </Typography>
+            <Typography
+              variant="h6"
+              fontWeight={700}
+              gutterBottom
+              color="primary.main"
+              sx={{ letterSpacing: 1 }}
+            >
+              📂 Actas Generadas
+            </Typography>
+
+            {/* Icono para recargar */}
+            <IconButton
+              color="primary"
+              onClick={loadFiles}
+              size="large"
+              sx={{ ml: 1 }}
+            >
+              <RefreshIcon />
+            </IconButton>
+          </Box>
+
           <TextField
             fullWidth
             size="medium"
@@ -124,6 +146,7 @@ const DriveFileViewer = () => {
             autoFocus
             variant="outlined"
           />
+
           <Divider sx={{ mb: 2, borderColor: "#e0e0e0" }} />
           {loading ? (
             <Box

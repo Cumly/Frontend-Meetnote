@@ -232,6 +232,7 @@ const MeetStep = ({
       <Typography variant="h5" fontWeight="bold">
         Accede a las reuniones
       </Typography>
+
       <Typography color="text.secondary">
         Selecciona la plataforma donde realizaste la reunión:
       </Typography>
@@ -426,6 +427,14 @@ const MeetStep = ({
           onContinue={handleContinue}
         />
       </Box>
+      <Typography
+        color="text.secondary"
+        variant="body2"
+        sx={{ fontStyle: "italic", mb: 2 }}
+      >
+        * Solo se mostrarán las reuniones que fueron agendadas previamente en el
+        calendario.
+      </Typography>
     </Box>
   );
 };

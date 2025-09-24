@@ -15,7 +15,7 @@ import { marked } from "marked";
 import { Backdrop, CircularProgress, Box } from "@mui/material";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { trancribeAudio } from "../services/TranscriptionService";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const RecordPage = () => {
   const [activeStep, setActiveStep] = useState(0);
@@ -25,7 +25,92 @@ const RecordPage = () => {
   const [archivo, setArchivo] = useState(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [acta, setActa] = useState(null);
+  const [nuevo, setNuevo] = useState(false);
   const navigate = useNavigate();
+  const [resultado, setResultado] = useState({
+    // datos crudos de la API
+    temas: "",
+    acuerdos: "",
+    conclusiones: "",
+  });
+
+  const [progreso, setProgreso] = useState(0);
+  const [mensaje, setMensaje] = useState("Iniciando...");
+  const [idOperacion, setIdOperacion] = useState(null);
+
+  const generarId = () => {
+    return (
+      "op_" +
+      Date.now().toString(36) +
+      "_" +
+      Math.random().toString(36).substring(2, 8)
+    );
+  };
+
+  useEffect(() => {
+    let isActive = true;
+
+    const consultarProgreso = async () => {
+      if (!loading || !idOperacion) return;
+
+      try {
+        const res = await fetch(
+          `http://127.0.0.1:8000/api/generateActaFromInput/getProgress/${idOperacion}/`
+        );
+        const data = await res.json();
+
+        if (isActive) {
+          setProgreso(data.progreso.porcentaje);
+          setMensaje(data.progreso.mensaje);
+
+          if (data.progreso.porcentaje < 100) {
+            setTimeout(consultarProgreso, 1500);
+          } else {
+            setLoading(false);
+            handleContinue();
+          }
+        }
+      } catch (error) {
+        console.error("Error consultando progreso:", error);
+        setLoading(false);
+      }
+    };
+
+    if (loading) {
+      consultarProgreso();
+    }
+
+    return () => {
+      isActive = false;
+    };
+  }, [loading, idOperacion]);
+
+  const handleGenerar = async (audio) => {
+    try {
+      const id = generarId();
+      setIdOperacion(id);
+      setLoading(true);
+      console.log("id:", id);
+      console.log(audio);
+
+      if (audio) {
+        const respuesta = await trancribeAudio(audio, id); // 👈 usamos el parámetro
+
+        console.log("Respuesta de transcripción:", resultado);
+        setResultado({
+          temas: respuesta.temas || "",
+          acuerdos: respuesta.acuerdos || "",
+          conclusiones: respuesta.conclusiones || "",
+        });
+      } else {
+        console.warn("No se ha cargado un archivo.");
+      }
+
+      setNuevo(true);
+    } catch (error) {
+      console.error("Error al generar acta:", error);
+    }
+  };
 
   const handleGuardar = async (data) => {
     try {
@@ -33,31 +118,60 @@ const RecordPage = () => {
       setDatosReunion(data);
       setTitulo(data.titulo);
 
-      console.log("Archivo a enviar:", archivo);
-      console.log("Es instancia de File:", archivo instanceof File);
-      if (archivo) {
-        const resultado = await trancribeAudio(
-          archivo,
-          data.titulo, // Título del acta
-          data.fecha, // Fecha de reunión
-          data.horaInicio, // Hora de inicio
-          data.horaFin, // Hora de fin
-          data.participantes // Lista de participantes
-        );
+      const actaHtml = `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6;">
 
-        console.log("Respuesta de transcripción:", resultado);
+        <h2 style="text-align:center; margin-bottom: 20px;">Acta de Reunión</h2>
 
-        // Accede al contenido del acta
-        const actaMarkdown = resultado["Acta generada"];
+   <ol style="margin-bottom: 20px;">
+  <li><b>Título:</b> ${data.titulo}</li>
+  <li><b>Fecha:</b> ${data.fecha}</li>
+  <li><b>Hora inicio:</b> ${data.horaInicio}</li>
+  <li><b>Hora fin:</b> ${data.horaFin}</li>
+  <li><b>Participantes:</b> ${
+    Array.isArray(data.participantes)
+      ? data.participantes
+          .map((p) =>
+            String(p)
+              .toLowerCase()
+              .replace(/\b\w/g, (c) => c.toUpperCase())
+          )
+          .join(", ")
+      : String(data.participantes || "")
+          .toLowerCase()
+          .replace(/\b\w/g, (c) => c.toUpperCase())
+  }</li>
+</ol>
 
-        // Convertir markdown a HTML para CKEditor
-        const actaHtml = marked.parse(actaMarkdown);
+    <hr style="margin: 20px 0; border: 1px solid #ccc;" />
 
-        setActa(actaHtml);
-        handleContinue();
-      } else {
-        console.warn("No se ha cargado un archivo.");
-      }
+    <h3 style="color:#333;">Temas discutidos</h3>
+    <ul>
+      ${resultado.temas
+        .split("•")
+        .filter((t) => t.trim())
+        .map((t) => `<li>${t.trim()}</li>`)
+        .join("")}
+    </ul>
+
+    <h3 style="color:#333;">Decisiones y acuerdos</h3>
+    <ul>
+      ${resultado.acuerdos
+        .split("•")
+        .filter((a) => a.trim())
+        .map((a) => `<li>${a.trim()}</li>`)
+        .join("")}
+    </ul>
+
+    <h3 style="color:#333;">Observaciones y conclusiones</h3>
+    <p>${resultado.conclusiones}</p>
+
+  </div>
+`;
+
+      setActa(actaHtml);
+      setNuevo(false);
+      handleContinue();
     } catch (error) {
       console.error("Error al transcribir:", error);
       // Aquí puedes mostrar un mensaje al usuario si lo deseas
@@ -68,9 +182,9 @@ const RecordPage = () => {
 
   const handleAudio = (audioBlob) => {
     if (audioBlob) {
-      setArchivo(audioBlob); // Guardamos el audio en el estado
+      setArchivo(audioBlob); // Por si lo necesitas después
+      handleGenerar(audioBlob); // 👈 lo pasamos directamente
     }
-    handleContinue();
   };
 
   const handleGuardarActa = (contenidoEditado) => {
@@ -111,10 +225,12 @@ const RecordPage = () => {
           titulo={titulo}
         >
           <AudioRecorder
+            audio={archivo}
             onContinue={handleAudio}
             onCancel={handleCancel}
           ></AudioRecorder>
           <FormStep
+            nuevo={nuevo}
             data={datosReunion}
             onGuardar={handleGuardar}
             onBack={handleNavigationBack}
@@ -152,6 +268,7 @@ const RecordPage = () => {
           </Button>
         </DialogActions>
       </Dialog>
+      {/* Backdrop con progreso */}
       <Backdrop
         sx={{
           color: "#fff",
@@ -160,10 +277,28 @@ const RecordPage = () => {
         }}
         open={loading}
       >
-        <CircularProgress color="inherit" />
+        <Box sx={{ position: "relative", display: "inline-flex" }}>
+          <CircularProgress variant="determinate" value={progreso} size={100} />
+          <Box
+            sx={{
+              top: 0,
+              left: 0,
+              bottom: 0,
+              right: 0,
+              position: "absolute",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Typography variant="h6" component="div" sx={{ color: "#fff" }}>
+              {`${Math.round(progreso)}%`}
+            </Typography>
+          </Box>
+        </Box>
         <Box mt={2}>
-          <Typography variant="h6" align="center">
-            Procesando grabación...
+          <Typography variant="h6" align="center" sx={{ color: "#fff" }}>
+            {mensaje}
           </Typography>
         </Box>
       </Backdrop>

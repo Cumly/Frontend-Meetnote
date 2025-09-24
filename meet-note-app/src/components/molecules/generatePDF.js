@@ -21,14 +21,16 @@ const GeneratePDF = ({ textoHTML, titulo = "sin-titulo" }) => {
       const yyyy = fecha.getFullYear();
       const mm = String(fecha.getMonth() + 1).padStart(2, "0");
       const dd = String(fecha.getDate()).padStart(2, "0");
-      console.log("Fecha local:", fecha.toString());
-      console.log("Fecha UTC:", fecha.toISOString());
 
       const fechaStr = `${yyyy}${mm}${dd}`;
-      const nombreArchivo = `Acta_${fechaStr}_${titulo.replace(
-        /\s+/g,
-        "_"
-      )}.pdf`;
+
+      // 🔹 Sanitizar el título
+      const tituloSeguro = (titulo || "sin_titulo")
+        .replace(/[<>:"/\\|?*]+/g, "")
+        .replace(/\s+/g, "_")
+        .substring(0, 100);
+
+      const nombreArchivo = `Acta_${fechaStr}_${tituloSeguro}.pdf`;
 
       const opt = {
         margin: 10,
@@ -38,17 +40,74 @@ const GeneratePDF = ({ textoHTML, titulo = "sin-titulo" }) => {
         jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
       };
 
+      // 🔹 Estilos
+      const contenidoConSaltos = `
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; }
+
+    ul, ol, p, table {
+      page-break-inside: avoid; 
+      break-inside: avoid; 
+    }
+
+    h1, h2, h3, h4 {
+      page-break-inside: avoid;
+      break-inside: avoid;
+      page-break-after: avoid;
+    }
+
+    .pdf-footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      font-size: 10px;
+      color: #555;
+      text-align: center;
+      border-top: 1px solid #ccc;
+      padding-top: 4px;
+    }
+  </style>
+
+  <div>
+    ${textoHTML}
+  </div>
+
+  <div class="pdf-footer">
+    Acta generada automáticamente - ${new Date().toLocaleDateString()}
+  </div>
+`;
+
       const element = document.createElement("div");
       element.style.padding = "20px";
       element.style.fontSize = "14px";
       element.style.lineHeight = "1.6";
       element.style.maxWidth = "800px";
       element.style.margin = "0 auto";
-      element.innerHTML = textoHTML;
 
-      const pdfBlob = await html2pdf().set(opt).from(element).outputPdf("blob");
+      element.innerHTML = contenidoConSaltos;
 
-      // Descargar localmente creando un enlace temporal
+      // 🔹 Generar PDF como objeto jsPDF
+      const pdf = await html2pdf().set(opt).from(element).toPdf().get("pdf");
+
+      // 🔹 Insertar paginación
+      const totalPages = pdf.internal.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        pdf.setPage(i);
+        pdf.setFontSize(10);
+        pdf.text(
+          `Página ${i} de ${totalPages}`,
+          pdf.internal.pageSize.getWidth() / 2,
+          pdf.internal.pageSize.getHeight() - 5,
+          { align: "center" }
+        );
+      }
+
+      // 🔹 Exportar como Blob
+      const pdfBlob = pdf.output("blob");
+
+      // Descargar localmente
       const url = window.URL.createObjectURL(pdfBlob);
       const a = document.createElement("a");
       a.href = url;
@@ -58,7 +117,7 @@ const GeneratePDF = ({ textoHTML, titulo = "sin-titulo" }) => {
       a.remove();
       window.URL.revokeObjectURL(url);
 
-      // Crear archivo para subir a Drive
+      // Subir a Drive
       const file = new File([pdfBlob], nombreArchivo, {
         type: "application/pdf",
       });
@@ -84,7 +143,7 @@ const GeneratePDF = ({ textoHTML, titulo = "sin-titulo" }) => {
         startIcon={<PictureAsPdfIcon />}
         onClick={generarYDescargarYSubirPDF}
       >
-        Guardar PDF local y en Drive
+        Guardar PDF
       </Button>
 
       <Snackbar

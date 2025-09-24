@@ -5,25 +5,46 @@ import Navbar from "../components/organisms/navbar";
 import Sidebar from "../components/organisms/sidebar";
 
 const MainLayout = () => (
-  <Box sx={{ display: "flex" }}>
-    {/* Navbar fijo */}
+  <Box sx={{ display: "flex", flexDirection: "column", minHeight: "98vh" }}>
+    {/* Navbar */}
     <Navbar />
 
-    {/* Sidebar fijo */}
-    <Sidebar />
+    <Box sx={{ display: "flex", flexGrow: 1 }}>
+      {/* Sidebar */}
+      <Sidebar />
 
+      {/* Contenido principal */}
+      <Box
+        component="main"
+        sx={{
+          flexGrow: 1,
+          p: 2,
+          pt: 4,
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        <Toolbar />
+        <Outlet />
+      </Box>
+    </Box>
+
+    {/* Footer */}
     <Box
-      component="main"
+      component="footer"
       sx={{
-        flexGrow: 1,
-        p: 3,
-        pt: 4,
-        maxHeight: "50vh",
+        py: 2,
+        bgcolor: "#fff3cd",
+        color: "#856404",
+        textAlign: "center",
+        fontSize: "1.5rem",
+        fontWeight: 500,
+        borderTop: "1px solid #ffeeba",
+        width: "100%",
       }}
     >
-      <Toolbar />
-      {/* Aquí se renderiza la ruta activa */}
-      <Outlet />
+      ⚠️ Esta aplicación maneja información sensible. Maneje los datos con
+      cuidado.
     </Box>
   </Box>
 );

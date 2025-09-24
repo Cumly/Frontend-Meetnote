@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   IconButton,
   Typography,
@@ -15,7 +15,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import { Mic, Stop, Pause, PlayArrow } from "@mui/icons-material";
 import ButtonStep from "./buttonsStep";
 
-const AudioRecorder = ({ onBack, onContinue, onCancel }) => {
+const AudioRecorder = ({ onBack, onContinue, onCancel, audio }) => {
   const [recording, setRecording] = useState(false);
   const [paused, setPaused] = useState(false);
   const [audioURL, setAudioURL] = useState(null);
@@ -23,9 +23,27 @@ const AudioRecorder = ({ onBack, onContinue, onCancel }) => {
   const [errorMsg, setErrorMsg] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [confirmResetOpen, setConfirmResetOpen] = useState(false); // nuevo
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const intervalRef = useRef(null);
+  // ⬅️ NUEVO estado para saber si el usuario ya grabó algo
+  const [hasRecorded, setHasRecorded] = useState(false);
 
   const mediaRecorderRef = useRef(null);
   const audioChunks = useRef([]);
+
+  // Si recibo un audio por props, lo muestro SOLO si no he grabado nada
+  useEffect(() => {
+    if (audio && !hasRecorded) {
+      if (audio instanceof Blob) {
+        const url = URL.createObjectURL(audio);
+        setAudioURL(url);
+        setAudioBlob(audio);
+      } else if (typeof audio === "string") {
+        setAudioURL(audio);
+        setAudioBlob(null);
+      }
+    }
+  }, [audio, hasRecorded]);
 
   const startRecording = async () => {
     try {
@@ -60,6 +78,8 @@ const AudioRecorder = ({ onBack, onContinue, onCancel }) => {
       mediaRecorderRef.current.start();
       setRecording(true);
       setPaused(false);
+      setElapsedTime(0);
+      startTimer(); // ⏱ arranca el cronómetro
       clearError();
     } catch (error) {
       showError("No se pudo acceder al micrófono. Verifica permisos.");
@@ -74,6 +94,24 @@ const AudioRecorder = ({ onBack, onContinue, onCancel }) => {
     }
   };
 
+  const startTimer = () => {
+    intervalRef.current = setInterval(() => {
+      setElapsedTime((prev) => prev + 1);
+    }, 1000);
+  };
+
+  const pauseTimer = () => {
+    clearInterval(intervalRef.current);
+  };
+
+  const resumeTimer = () => {
+    startTimer();
+  };
+
+  const stopTimer = () => {
+    clearInterval(intervalRef.current);
+  };
+
   const confirmResetAndStart = () => {
     setAudioBlob(null);
     setAudioURL(null);
@@ -82,27 +120,24 @@ const AudioRecorder = ({ onBack, onContinue, onCancel }) => {
   };
 
   const pauseRecording = () => {
-    if (
-      mediaRecorderRef.current &&
-      mediaRecorderRef.current.state === "recording"
-    ) {
+    if (mediaRecorderRef.current?.state === "recording") {
       mediaRecorderRef.current.pause();
+      pauseTimer(); // ⏱ pausa
       setPaused(true);
     }
   };
 
   const resumeRecording = () => {
-    if (
-      mediaRecorderRef.current &&
-      mediaRecorderRef.current.state === "paused"
-    ) {
+    if (mediaRecorderRef.current?.state === "paused") {
       mediaRecorderRef.current.resume();
+      resumeTimer(); // ⏱ reanuda
       setPaused(false);
     }
   };
 
   const stopRecording = () => {
     mediaRecorderRef.current?.stop();
+    stopTimer(); // ⏱ resetea
     setRecording(false);
     setPaused(false);
   };
@@ -119,33 +154,41 @@ const AudioRecorder = ({ onBack, onContinue, onCancel }) => {
   const handleDialogExited = () => {
     setErrorMsg("");
   };
+  // función formateadora
+  const formatTime = (seconds) => {
+    const mins = String(Math.floor(seconds / 60)).padStart(2, "0");
+    const secs = String(seconds % 60).padStart(2, "0");
+    return `${mins}:${secs}`;
+  };
 
   const handleContinue = () => {
     if (!audioBlob) {
-      showError("Debe seleccionar un audio antes de continuar.");
+      showError("Debe grabar un audio antes de continuar.");
       return;
     }
 
-    const audio = document.createElement("audio");
-    audio.src = URL.createObjectURL(audioBlob);
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const arrayBuffer = e.target.result;
+      const audioContext = new (window.AudioContext || window.AudioContext)();
 
-    const validarDuracion = () => {
-      if (audio.duration >= 60) {
-        clearError();
-        onContinue(audioBlob); // Pasamos el audio al componente padre
-      } else {
-        showError("El audio debe durar al menos 1 minuto para continuar.");
+      try {
+        const decoded = await audioContext.decodeAudioData(arrayBuffer);
+        const duration = decoded.duration; // en segundos
+
+        if (duration >= 300) {
+          // 300s = 5 minutos
+          clearError();
+          onContinue(audioBlob); // ✅ ahora sí pasa el blob correctamente
+        } else {
+          showError("El audio debe durar al menos 5 minutos para continuar.");
+        }
+      } catch (err) {
+        showError("No se pudo procesar el audio para validar la duración.");
       }
     };
 
-    if (audio.readyState >= 1) {
-      validarDuracion();
-    } else {
-      audio.onloadedmetadata = validarDuracion;
-      audio.onerror = () => {
-        showError("No se pudo cargar el audio para validar la duración.");
-      };
-    }
+    reader.readAsArrayBuffer(audioBlob);
   };
 
   const iconButtonStyle = {
@@ -169,83 +212,117 @@ const AudioRecorder = ({ onBack, onContinue, onCancel }) => {
         bgcolor: "background.paper",
         borderRadius: 4,
         boxShadow: 6,
-        textAlign: "center",
         display: "flex",
         flexDirection: "column",
-        alignItems: "center",
+        alignItems: "center", // centra horizontal
+        justifyContent: "center", // centra vertical (dentro del box)
+        textAlign: "center",
         gap: 3,
       }}
     >
-      <Typography variant="h5" fontWeight="bold">
-        Grabadora de Voz
-      </Typography>
+      <Stack direction="column" spacing={1} alignItems="center">
+        <Typography variant="h5" fontWeight="bold">
+          Grabadora de Voz
+        </Typography>
 
-      <Typography variant="body1" align="center" color="text.secondary" mb={3}>
-        Presiona para <b>iniciar</b>, <b>pausar</b>, <b>reanudar</b> o{" "}
-        <b>detener</b> la grabación.
-      </Typography>
-
-      <Stack direction="row" spacing={2} justifyContent="center">
-        {!recording && (
-          <Stack direction="column" alignItems="center" spacing={1}>
-            <IconButton
-              onClick={handleStartRecordingClick}
-              sx={{ ...iconButtonStyle, backgroundColor: "primary.main" }}
-              aria-label="Iniciar grabación"
-            >
-              <Mic sx={{ fontSize: 42 }} />
-            </IconButton>
-            <Typography variant="caption" color="text.secondary">
-              Grabar
-            </Typography>
-          </Stack>
-        )}
-
-        {recording && !paused && (
-          <Stack direction="column" alignItems="center" spacing={1}>
-            <IconButton
-              onClick={pauseRecording}
-              sx={{ ...iconButtonStyle, backgroundColor: "warning.main" }}
-              aria-label="Pausar grabación"
-            >
-              <Pause sx={{ fontSize: 42 }} />
-            </IconButton>
-            <Typography variant="caption" color="text.secondary">
-              Pausar
-            </Typography>
-          </Stack>
-        )}
-
-        {recording && paused && (
-          <Stack direction="column" alignItems="center" spacing={1}>
-            <IconButton
-              onClick={resumeRecording}
-              sx={{ ...iconButtonStyle, backgroundColor: "info.main" }}
-              aria-label="Reanudar grabación"
-            >
-              <PlayArrow sx={{ fontSize: 42 }} />
-            </IconButton>
-            <Typography variant="caption" color="text.secondary">
-              Reanudar
-            </Typography>
-          </Stack>
-        )}
-
-        {recording && (
-          <Stack direction="column" alignItems="center" spacing={1}>
-            <IconButton
-              onClick={stopRecording}
-              sx={{ ...iconButtonStyle, backgroundColor: "error.main" }}
-              aria-label="Detener grabación"
-            >
-              <Stop sx={{ fontSize: 42 }} />
-            </IconButton>
-            <Typography variant="caption" color="text.secondary">
-              Detener
-            </Typography>
-          </Stack>
-        )}
+        <Typography variant="body1" align="center" color="text.secondary">
+          Presiona para <b>iniciar</b>, <b>pausar</b>, <b>reanudar</b> o{" "}
+          <b>detener</b> la grabación.
+        </Typography>
       </Stack>
+      <Box
+        sx={{
+          mt: 2,
+          p: 3,
+          borderRadius: 3,
+          border: "2px solid",
+          borderColor: recording ? "primary.main" : "grey.300",
+          backgroundColor: "grey.100",
+          textAlign: "center",
+          width: "100%",
+          maxWidth: 400,
+        }}
+      >
+        {/* Cronómetro */}
+        <Typography
+          variant="h6"
+          fontWeight="bold"
+          color={recording ? "primary" : "text.secondary"}
+          gutterBottom
+        >
+          {formatTime(elapsedTime)}
+        </Typography>
+
+        {/* Botones */}
+        <Stack direction="row" spacing={2} justifyContent="center" mt={1}>
+          {!recording && (
+            <Stack direction="column" alignItems="center" spacing={1}>
+              <IconButton
+                onClick={handleStartRecordingClick}
+                sx={{ ...iconButtonStyle, backgroundColor: "primary.main" }}
+                aria-label="Iniciar grabación"
+              >
+                <Mic sx={{ fontSize: 42 }} />
+              </IconButton>
+              <Typography variant="caption" color="text.secondary">
+                Grabar
+              </Typography>
+            </Stack>
+          )}
+
+          {recording && !paused && (
+            <Stack direction="column" alignItems="center" spacing={1}>
+              <IconButton
+                onClick={pauseRecording}
+                sx={{ ...iconButtonStyle, backgroundColor: "warning.main" }}
+                aria-label="Pausar grabación"
+              >
+                <Pause sx={{ fontSize: 42 }} />
+              </IconButton>
+              <Typography variant="caption" color="text.secondary">
+                Pausar
+              </Typography>
+            </Stack>
+          )}
+
+          {recording && paused && (
+            <Stack direction="column" alignItems="center" spacing={1}>
+              <IconButton
+                onClick={resumeRecording}
+                sx={{ ...iconButtonStyle, backgroundColor: "info.main" }}
+                aria-label="Reanudar grabación"
+              >
+                <PlayArrow sx={{ fontSize: 42 }} />
+              </IconButton>
+              <Typography variant="caption" color="text.secondary">
+                Reanudar
+              </Typography>
+            </Stack>
+          )}
+
+          {recording && (
+            <Stack direction="column" alignItems="center" spacing={1}>
+              <IconButton
+                onClick={stopRecording}
+                sx={{ ...iconButtonStyle, backgroundColor: "error.main" }}
+                aria-label="Detener grabación"
+              >
+                <Stop sx={{ fontSize: 42 }} />
+              </IconButton>
+              <Typography variant="caption" color="text.secondary">
+                Detener
+              </Typography>
+            </Stack>
+          )}
+        </Stack>
+
+        {/* Texto adicional si está pausado */}
+        {paused && (
+          <Typography variant="body2" color="text.secondary" mt={2}>
+            Grabación pausada...
+          </Typography>
+        )}
+      </Box>
 
       {paused && (
         <Typography variant="body2" color="text.secondary" mt={2}>
